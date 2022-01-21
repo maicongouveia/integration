@@ -19,6 +19,8 @@ class MercadolivreWebhook extends Controller
             "received" => "2017-10-09T13:58:22.061Z"            
         ];
 
+        Log::info("[Webhook endpoint] Body Request: " . json_encode($request->all()));
+
         $mercadoPago = new MercadoLivre();
         $payment = $mercadoPago->getPayment($requestBody['resource']);
 
