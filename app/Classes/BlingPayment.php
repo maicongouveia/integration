@@ -2,7 +2,17 @@
 
 namespace App\Classes;
 
+use App\Http\Controllers\MercadoLivre;
+
 class BlingPayment extends Payment{
+
+    private $payer;
+
+    public function getPayer(){
+        $mercadoPago = new MercadoLivre();
+        return $mercadoPago->getPayer($this->payer['id']);
+
+    }
 
     public function createBill(){
         $bill = array(
@@ -47,6 +57,7 @@ class BlingPayment extends Payment{
     }
 
     public function createRevenue(){
+        $this->payer = $this->getPayer();
         $revenue = array(
             "contareceber" => array(
                 "dataEmissao" => "",
@@ -62,23 +73,12 @@ class BlingPayment extends Payment{
                 "ocorrencia" => array(
                     "ocorrenciaTipo" => "",
                     "diaVencimento" => "",
-                    "nroParcelas" => "",
+                    "nroParcelas" => $this->payment->installments,
                 ),
                 "cliente" => array(
-                    "nome" => "",
-                    "cpf_cnpj" => "",
-                    "tipoPessoa" => "",
-                    "ie_rg" => "",
-                    "endereco" => "",
-                    "numero" => "",
-                    "complemento" => "",
-                    "cidade" => "",
-                    "bairro" => "",
-                    "cep" => "",
-                    "uf" => "",
-                    "email" => "",
-                    "fone" => "",
-                    "celular" => "",
+                    "nome" => $this->payer->nome,
+                    "cpf_cnpj" => $this->payer['identification']['number'],
+                    "email" => $this->payer['email'],
                 ),
             ),
         );
