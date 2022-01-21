@@ -21,9 +21,25 @@ class MercadoLivre extends Controller
                 Log::warning("[getPayment]: Status: " . $response->status() . " - Body: " . $response->body());
                 return null;
             }
-            return $response->body();
+            return $response->json();
         }catch(Exception $e){
             Log::error("[getPayment]: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function getPayer(Int $payer_id){
+        try{
+            $response = Http::withHeaders($this->headers)->
+                        get('https://api.mercadopago.com/v1/customers/' . $payer_id, $this->headers);
+
+            if($response->status() != 200) {
+                Log::warning("[getPayer]: Status: " . $response->status() . " - Body: " . $response->body());
+                return null;
+            }
+            return $response->json();
+        }catch(Exception $e){
+            Log::error("[getPayer]: " . $e->getMessage());
             return null;
         }
     }
