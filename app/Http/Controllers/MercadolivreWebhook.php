@@ -2,35 +2,44 @@
 
 namespace App\Http\Controllers;
 
+use App\Classes\Bling;
+use App\Classes\BlingPayment;
+use App\Classes\MercadoLivre;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class MercadolivreWebhook extends Controller
 {
-    public function receive(Request $request) {
-
-        $requestBody = [
-            "resource" => "/collections/3043111111",
-            "user_id" => 123456789,
-            "topic" => "payments",
-            "application_id" => 2069392825111111,
-            "attempts" => 1,
-            "sent" => "2017-10-09T13:58:22.081Z",
-            "received" => "2017-10-09T13:58:22.061Z"            
-        ];
+    public function receive(Request $request) { 
 
         Log::info("[Webhook endpoint] Body Request: " . json_encode($request->all()));
 
         $mercadoPago = new MercadoLivre();
-        $payment = $mercadoPago->getPayment($requestBody['resource']);
+        $payment = $mercadoPago->getPayment($request['resource']);
 
-        /* if(!$payment){
+        if(!$payment){
             Log::error("Internal Server Error. Error: getPayment()");
             return response(["message" => "Internal Server Error. Error: getPayment()"], 500);
-        } */ 
-        
-        $payment = [];
+        }
 
-        return response(200);
+        $blingPayment = new BlingPayment($payment);
+        $bills = $blingPayment->getBills();
+
+        $blingAPI = new Bling();
+        $response = $blingAPI->registerBills($bills);
+
+        if ($response) {            
+            return response(200);
+        }
+        
+        return response(500);
     }
+
+
+    
+    // Todo: Guardar pagamento no banco de dados
+
+    // Todo: Tratar pagamento e criar contas a pagar e receber
+
+    // Todo: Enviar contas para bling
 }

@@ -27,6 +27,10 @@ class Payment
     private $transaction_details;
 
     private $installments;
+
+    private $shipment_cost;
+
+    private $fee_cost;
     
     public function __construct($payment)
     {

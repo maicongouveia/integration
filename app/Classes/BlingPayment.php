@@ -2,11 +2,13 @@
 
 namespace App\Classes;
 
-use App\Http\Controllers\MercadoLivre;
+use App\Classes\MercadoLivre;
 
 class BlingPayment extends Payment{
 
     private $payer;
+
+    private $bills;
 
     public function getPayer(){
         $mercadoPago = new MercadoLivre();
@@ -54,6 +56,8 @@ class BlingPayment extends Payment{
 
             )
         );
+
+        return $bill;
     }
 
     public function createRevenue(){
@@ -82,5 +86,26 @@ class BlingPayment extends Payment{
                 ),
             ),
         );
+        return $revenue;
+    }
+
+    public function getBills(){
+        $this->bills = array(
+            "bills" => array(),
+            "reveneu" => array(),
+        );
+        if ($this->payment->shipment_cost){
+            $this->bills['bills'][] = $this->createBill();
+        }
+
+        if ($this->payment->fee_cost){
+            $this->bills['bills'][] = $this->createBill();
+        }
+
+        if ($this->payment->fee_cost){
+            $this->bills['reveneu'][] = $this->createRevenue();
+        }
+
+        return $this->bills;
     }
 }
