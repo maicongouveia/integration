@@ -21,19 +21,19 @@ class BlingPayment extends Payment{
                 "vencimentoOriginal" => "",
                 "competencia"        => "",
                 "nroDocumento"       => "",
-                "valor"              => "",
+                "valor"              => "", //obrigatorio
                 "histórico"          => "",
                 "categoria"          => "",
                 "portador"           => "",
                 "idFormaPagamento"   => "",
-                "ocorrencia"         => array(
-                                                "ocorrenciaTipo"      => "",
+                "ocorrencia"         => array(//obrigatorio
+                                                "ocorrenciaTipo"      => "", //obrigatorio
                                                 "diaVencimento"       => "",
                                                 "nroParcelas"         => $this->installments,
                                                 "diaSemanaVencimento" => "",
                 ),
-                "fornecedor"         => array(
-                                                "nome"        => "",
+                "fornecedor"         => array(//obrigatorio
+                                                "nome"        => "",//obrigatorio
                                                 "id"          => "",
                                                 "cpf_cnpj"    => "",
                                                 "tipoPessoa"  => "",
@@ -64,19 +64,19 @@ class BlingPayment extends Payment{
                 "vencimentoOriginal" => "",
                 "competencia" => "",
                 "nroDocumento" => "",
-                "valor" => "",
+                "valor" => "", //obrigatorio
                 "historico" => "",
                 "categoria" => "",
                 "idFormaPagamento" => "",
                 "portador" => "",
                 "vendedor" => "",
-                "ocorrencia" => array(
-                    "ocorrenciaTipo" => "",
+                "ocorrencia" => array(//obrigatorio
+                    "ocorrenciaTipo" => "",//obrigatorio
                     "diaVencimento" => "",
                     "nroParcelas" => $this->payment->installments,
                 ),
-                "cliente" => array(
-                    "nome" => $this->payer->nome,
+                "cliente" => array(//obrigatorio
+                    "nome" => $this->payer->nome,//obrigatorio
                     "cpf_cnpj" => $this->payer['identification']['number'],
                     "email" => $this->payer['email'],
                 ),

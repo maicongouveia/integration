@@ -1,7 +1,8 @@
 <?php
 
-use App\Http\Controllers\MercadolivreWebhook;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Mercadolivre;
+use App\Http\Controllers\MercadolivreWebhook;
 
 /*
 |--------------------------------------------------------------------------
@@ -15,3 +16,5 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::post('/webhook/mercadolivre', [MercadolivreWebhook::class, 'receive']);
+
+Route::get('/mercadolivre/orders', [MercadoLivre::class, 'getOrders']);
