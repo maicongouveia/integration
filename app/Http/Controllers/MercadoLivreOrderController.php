@@ -8,6 +8,6 @@ class MercadoLivreOrderController extends Controller
 {
     public function orders(Request $request) {
         $ml = new Mercadolivre();
-        return $ml->getOrders();
+        return view('welcome');
     }
 }

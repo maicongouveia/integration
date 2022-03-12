@@ -49,9 +49,9 @@ class Mercadolivre extends Controller
     public function getOrders(){
         $request_data = array(
             'seller' => env('MERCADOLIVRE_SELLER_ID'),
-            'limit'  => 10,
+            'limit'  => 1,
             'sort'   => 'date_desc',
-            'q'      => 5265607923 //order_id
+            //'q'      => 5265607923 //order_id
         );
         try{          
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get(env("MERCADOLIVRE_API_URL")."/orders/search", $request_data);
@@ -59,7 +59,7 @@ class Mercadolivre extends Controller
                 Log::warning("[getOrders]: Status: " . $response->status() . " - Body: " . $response->body());
                 return null;
             }
-            return $this->responseOrdersHandler($response->json());
+            return Response($this->responseOrdersHandler($response->json()), 200);
         }catch(Exception $e){
             Log::error("[getOrders]: " . $e->getMessage());
             dd("[getOrders]: " . $e->getMessage());
@@ -71,7 +71,7 @@ class Mercadolivre extends Controller
         try{          
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get(env("MERCADOLIVRE_API_URL")."/shipments/".$shippingId);
             if($response->status() != 200) {
-                Log::warning("[getShippingCost]: Status: " . $response->status() . " - Body: " . $response->body());
+                Log::warning("[getShippingCost]: Status: " . $response->status() . " - Body: " . json_decode($response->body()));
                 return null;
             }
             return $response['shipping_option']['list_cost'];
@@ -86,7 +86,7 @@ class Mercadolivre extends Controller
         try{          
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get(env("MERCADOPAGO_API_URL") . "/v1/payments/" . $paymentId);
             if($response->status() != 200) {
-                Log::warning("[getFeeDetails]: Status: " . $response->status() . " - Body: " . $response->body());
+                Log::warning("[getPaymentDetails]: Status: " . $response->status() . " - Body: " . $response->body());
                 return null;
             }
             return array(
@@ -94,8 +94,8 @@ class Mercadolivre extends Controller
                 'payer' => $this->responsePayerHandler($response->json()),
             );
         }catch(Exception $e){
-            Log::error("[getFeeDetails]: " . $e->getMessage());
-            dd("[getFeeDetails]: " . $e->getMessage());
+            Log::error("[getPaymentDetails]: " . $e->getMessage() . "\n[Data]: " . $response);
+            dd("[getPaymentDetails]: " . $e->getMessage() . "\n[Data]: " . $response);
             return null;
         }
     }
@@ -107,12 +107,22 @@ class Mercadolivre extends Controller
             'ml_fee' => 'Gestão de Vendas',
             'mp_fee' => 'Tarifa de Venda',
         );
-
+        
         foreach($responseFeeDetails['fee_details'] as $fee){
-            $feeDetails[] = [
-                'amount' => $fee['amount'],
-                'description' => $typeDict[$fee['type']]
-            ];
+            $description = $fee['type'];
+
+            if(array_key_exists($fee['type'], $typeDict)){ $description = $typeDict[$fee['type']];}
+
+            try{
+                $feeDetails[] = [
+                    'amount' => $fee['amount'],
+                    'description' => $description
+                ];
+            }
+            catch(Exception $e){
+                Log::error("[responseFeeHandler]: " . $e->getMessage(). " - [Data]: " . $fee);
+                dd("[responseFeeHandler]: " . $e->getMessage() . "- [Data]: " . $fee);
+            }
         }
 
         
@@ -128,13 +138,13 @@ class Mercadolivre extends Controller
         try{          
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get(env("MERCADOLIVRE_API_URL") . "/users/" . env('MERCADOLIVRE_SELLER_ID') . "/invoices/orders/" . $orderId);
             if($response->status() != 200) {
-                Log::warning("[getInvoice]: Status: " . $response->status() . " - Body: " . $response->body());
+                Log::warning("[getInvoice]: Order ID: $orderId - Status: " . $response->status() . " - Body: " . $response->body());
                 return null;
             }
             return $response->json()['invoice_number'];
         }catch(Exception $e){
-            Log::error("[getInvoice]: " . $e->getMessage());
-            dd("[getInvoice]: " . $e->getMessage());
+            Log::error("[getInvoice]: Order ID: $orderId - [Error]" . $e->getMessage());
+            dd("[getInvoice]: Order ID: $orderId - [Error]" . $e->getMessage());
             return null;
         }
     }
