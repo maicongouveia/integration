@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use Exception;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 class Mercadolivre extends Controller
 {
@@ -46,13 +47,18 @@ class Mercadolivre extends Controller
     }
 
     
-    public function getOrders(){
+    public function getOrders(Request $request) {
         $request_data = array(
             'seller' => env('MERCADOLIVRE_SELLER_ID'),
             'limit'  => 1,
             'sort'   => 'date_desc',
+            'order.status' => 'paid',
             //'q'      => 5265607923 //order_id
         );
+
+        if ($request->offset) {
+            $request_data['offset'] = $request->offset;
+        }
         try{          
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get(env("MERCADOLIVRE_API_URL")."/orders/search", $request_data);
             if($response->status() != 200) {
@@ -68,8 +74,9 @@ class Mercadolivre extends Controller
     }
 
     public function getShippingCost($shippingId){
-        try{          
-            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get(env("MERCADOLIVRE_API_URL")."/shipments/".$shippingId);
+        try{
+            $url = env("MERCADOLIVRE_API_URL")."/shipments/".$shippingId;
+            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get($url);
             if($response->status() != 200) {
                 Log::warning("[getShippingCost]: Status: " . $response->status() . " - Body: " . json_decode($response->body()));
                 return null;
@@ -100,7 +107,8 @@ class Mercadolivre extends Controller
         }
     }
 
-    public function responseFeeHandler($responseFeeDetails){
+    public function responseFeeHandler($responseFeeDetails) 
+    {
         $feeDetails = array();
 
         $typeDict = array(
@@ -108,10 +116,14 @@ class Mercadolivre extends Controller
             'mp_fee' => 'Tarifa de Venda',
         );
         
-        foreach($responseFeeDetails['fee_details'] as $fee){
+        foreach ($responseFeeDetails['fee_details'] as $fee) {
             $description = $fee['type'];
 
-            if(array_key_exists($fee['type'], $typeDict)){ $description = $typeDict[$fee['type']];}
+            $isType = array_key_exists($fee['type'], $typeDict);
+
+            if ($isType) { 
+                $description = $typeDict[$fee['type']];
+            }
 
             try{
                 $feeDetails[] = [
@@ -157,7 +169,7 @@ class Mercadolivre extends Controller
             $payment = $order['payments']['0'];
             $input = [
                 'order_id' => $payment['order_id'],
-                //'reason'   => $payment['reason'],
+                'reason'   => $payment['reason'],
                 'payment_method' => $payment['payment_method_id'],
                 'payment_date' => $payment['date_approved'],
                 'total_paid_amount' => $payment['total_paid_amount'],

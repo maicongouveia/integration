@@ -13,21 +13,27 @@
 
 <body>
     <div class="container-fluid">
-        <table class='table table-striped table-hover'>
+        <table class='table table-bordered table-striped table-hover'>
             <thead class='table-dark'>
                 <tr>
                     <th>N° Pedido</th>
                     <th>Nota Fiscal</th>
                     <th>Comprador</th>
+                    <th>Descrição</th>
                     <th>Total</th>
                     <th>Método</th>
-                    <th>Data do Pagto</th>
                     <th>Taxas</th>
+                    <th class='text-end'>Data do Pagto</th>
                 </tr>
             </thead>
             <tbody id='content'>
             </tbody>
         </table>
+        <div class="text-center" id='loader'>
+            <div class="spinner-grow" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
     </div>
 
     <script src={{ URL::asset("js/main.js") }}></script>
