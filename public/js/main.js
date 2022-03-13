@@ -1,23 +1,41 @@
-var url = new URL("http://127.0.0.1/api/mercadolivre/orders");
+var url = "/api/mercadolivre/orders";
 const limit = 30;
+
+var searchingFlag = false;
+const searchButton = document.getElementById('searchButton');
+const searchInput = document.getElementById('searchInput');
+searchButton.addEventListener(
+	'click', 
+	function (event) {
+		event.preventDefault();
+		searchForOrders(0, searchInput.value)
+	}
+);
 
 window.onload = function(){searchForOrders(0);}
 
-function searchForOrders(i, search = null){
-	params = {'offset': i};
-	if (search) {
-		params.q = search; 
-	}
+function searchForOrders(offset, search = null){
 
-	Object.keys(params).forEach(key => url.searchParams.append(key, params[key]))
-	console.log(url);
-	fetch(url)
+	if (offset == 0) { clearContent(); }
+
+	params = {'offset': offset};
+
+	if (search) {params.q = search;}
+
+	urlFinal = url + "?";
+
+	Object.keys(params).forEach(
+		function (key){
+			urlFinal += key + "=" + params[key] + "&"}
+	)
+
+	fetch(urlFinal)
 		.then((response) => response.json())
 		.then(
 			function (response){
 				addContent(response);
-				if (i < limit) {
-					searchForOrders(++i);
+				if (offset < limit) {
+					searchForOrders(++offset, search);
 				}
 				else {
 					stopLoader();
@@ -28,6 +46,11 @@ function searchForOrders(i, search = null){
 			console.log(error);
 			stopLoader();
 		});
+}
+
+function clearContent() {
+	let content = document.getElementById('content');
+	content.innerHTML = '';
 }
 
 function stopLoader() {
@@ -83,3 +106,4 @@ function row(order){
 	
 	
 }
+

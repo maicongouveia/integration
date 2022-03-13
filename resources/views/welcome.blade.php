@@ -13,6 +13,12 @@
 
 <body>
     <div class="container-fluid">
+        <div id='search' class='d-flex'>
+            <form class="col-2">
+                <input type="search" class="form-control form-control-dark" placeholder="Ex.: Alex Medeiros" aria-label="Search" id='searchInput'>
+                <button id='searchButton'>Pesquisar</button>
+            </form>
+        </div>
         <table class='table table-bordered table-striped table-hover'>
             <thead class='table-dark'>
                 <tr>
