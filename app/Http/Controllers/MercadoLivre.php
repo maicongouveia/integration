@@ -39,15 +39,20 @@ class Mercadolivre extends Controller
             'limit'  => 1,
             'sort'   => 'date_desc',
             'order.status' => 'paid',
-            //'q'      => 5265607923 //order_id
+            //'q'      => 5332358230 //order_id
         );
+
+        if ($request->order_id) {
+            $request_data['q'] = $request->order_id;
+        }   
 
         if ($request->offset) {
             $request_data['offset'] = $request->offset;
         }
+
         try{          
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get(env("MERCADOLIVRE_API_URL")."/orders/search", $request_data);
-            if($response->status() != 200) {
+            if ($response->status() != 200) {
                 Log::warning("[getOrders]: Status: " . $response->status() . " - Body: " . $response->body());
                 return null;
             }
@@ -68,7 +73,10 @@ class Mercadolivre extends Controller
                 Log::warning("[getShippingCost]: Status: " . $response->status() . " - Body: " . $response);
                 return null;
             }
-            return $response['shipping_option']['list_cost'];
+            return array(
+                'description' => 'Envio pelo Mercado Envios',
+                'amount' => $response['shipping_option']['list_cost'],
+            );
         }catch(Exception $e){
             Log::error("[getShippingCost]: " . $e->getMessage());
             dd("[getShippingCost]: " . $e->getMessage());
@@ -97,8 +105,6 @@ class Mercadolivre extends Controller
                     return null;
                 }
 
-                //dd($response->json());
-
                 $response = array(
                                     'sales_fee' => $this->responseFeeHandler($response->json()),
                                     'payer'     => $this->responsePayerHandler($response->json()),
@@ -107,6 +113,7 @@ class Mercadolivre extends Controller
                                         'amount' => $response['transaction_amount'],
                                     ),
                                 );
+                
             }catch(Exception $e){
                 $log = "[getPaymentDetails]: " . $e->getMessage() . 
                        "- [Data]: " . $response;
@@ -120,7 +127,7 @@ class Mercadolivre extends Controller
                 $response['sales_fee']
             );
 
-            $paymentResponse['sales_fee'][] = $sales_fee;
+            $paymentResponse['sales_fee'] = $sales_fee;
 
             $payment_info = array_merge(
                 $paymentResponse['payment_info'], 
@@ -154,10 +161,10 @@ class Mercadolivre extends Controller
         $feeDetails = array();
 
         $typeDict = array(
-            'ml_fee' => 'Gestão de Vendas',
-            'mp_fee' => 'Tarifa de Venda',
+            'ml_fee'        => 'Gestão de Vendas',
+            'mp_fee'        => 'Tarifa de Venda',
         );
-        
+
         foreach ($responseFeeDetails['fee_details'] as $fee) {
             $description = $fee['type'];
 
@@ -168,18 +175,16 @@ class Mercadolivre extends Controller
             }
 
             try{
-                $feeDetails[] = [
+                $feeDetails[] = array(
                     'amount' => $fee['amount'],
                     'description' => $description
-                ];
+                );
             }
             catch(Exception $e){
                 Log::error("[responseFeeHandler]: " . $e->getMessage(). " - [Data]: " . $fee);
                 dd("[responseFeeHandler]: " . $e->getMessage() . "- [Data]: " . $fee);
             }
         }
-
-        
 
         return $feeDetails;
     }
@@ -216,11 +221,14 @@ class Mercadolivre extends Controller
                 'order_id' => $order['id'],
                 'invoice' => $this->getInvoice($order['id']),
                 'reason'   => $payments[0]['reason'],
-                'shipping_cost' => $this->getShippingCost($order['shipping']['id']),
                 'payment_date' => $payments[0]['date_approved'],
             ];
 
-            $orders[] = array_merge($input, $this->getPaymentDetails($payments));
+            $input = array_merge($input, $this->getPaymentDetails($payments));
+            
+            $input['sales_fee'][] = $this->getShippingCost($order['shipping']['id']);
+
+            $orders[] = $input;
         }
         return $orders;
     }

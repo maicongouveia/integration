@@ -18,3 +18,5 @@ use App\Http\Controllers\MercadolivreWebhook;
 Route::post('/webhook/mercadolivre', [MercadolivreWebhook::class, 'receive']);
 
 Route::get('/mercadolivre/orders', [MercadoLivre::class, 'getOrders']);
+
+Route::get('/mercadolivre/order/{order_id}', [MercadoLivre::class, 'getOrders']);

@@ -71,7 +71,7 @@ function row(order){
 							'order_id',
 							'invoice',
 							'payer',
-							'reason',
+							/* 'reason', */
 							'payment_info', 
 							'total_paid_amount',
 							'sales_fee',
@@ -86,10 +86,10 @@ function row(order){
 				cellElement.innerHTML = order[index];
 			}
 		}				
-		else if (index == "reason") {
+		/* else if (index == "reason") {
 			cellElement.innerHTML = order[index];
 			cellElement.classList.add('overflow-auto');
-		}
+		} */
 		else if(index == "payment_info") {
 			let innerTable = "<table class='table table-striped'>";
 			order[index].forEach(payment => {
@@ -108,7 +108,7 @@ function row(order){
 		}
 		else if(index == "sales_fee") {
 			let innerTable = "<table class='table table-striped'>";
-			order[index][0].forEach(fee => {
+			order[index].forEach(fee => {
 				innerTable += "<tr>";
 				innerTable += "<td>" + fee['description'] + "</td>";
 				innerTable += "<td>" + fee['amount'].toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); + "</td>";
@@ -119,7 +119,7 @@ function row(order){
 		}
 		else if (index == "total_fee_amount") {
 			let amount = 0;
-			order['sales_fee'][0].forEach(fee => {amount += fee['amount']});
+			order['sales_fee'].forEach(fee => {amount += fee['amount']});
 			cellElement.innerHTML = amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });;
 		}			
 		else if (index == "payment_date") {

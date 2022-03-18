@@ -25,7 +25,7 @@
                     <th>N° Pedido</th>
                     <th>Nota Fiscal</th>
                     <th>Comprador</th>
-                    <th>Descrição</th>
+                    <!-- <th>Descrição</th> -->
                     <th>Pagamentos</th>
                     <th>Total Pagamento</th>
                     <th>Taxas</th>
