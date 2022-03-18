@@ -1,7 +1,7 @@
 var url = "/api/mercadolivre/orders";
-const limit = 30;
+const limit = 300;
 
-var searchingFlag = false;
+/* var searchingFlag = false;
 const searchButton = document.getElementById('searchButton');
 const searchInput = document.getElementById('searchInput');
 searchButton.addEventListener(
@@ -10,7 +10,7 @@ searchButton.addEventListener(
 		event.preventDefault();
 		searchForOrders(0, searchInput.value)
 	}
-);
+); */
 
 window.onload = function(){searchForOrders(0);}
 
@@ -72,28 +72,60 @@ function row(order){
 							'invoice',
 							'payer',
 							'reason',
+							'payment_info', 
 							'total_paid_amount',
-							'payment_method', 
 							'sales_fee',
+							'total_fee_amount',
 							'payment_date',
 						]
 
 	orderTable.forEach((index) =>{
 		cellElement = document.createElement('td');
-		if(index == "sales_fee") {
-			cellElement.innerHTML = order[index].length + " taxas";
-		}		
+		if(index == "payer") {
+			if(typeof(order[index]) != "array") {
+				cellElement.innerHTML = order[index];
+			}
+		}				
 		else if (index == "reason") {
 			cellElement.innerHTML = order[index];
 			cellElement.classList.add('overflow-auto');
 		}
+		else if(index == "payment_info") {
+			let innerTable = "<table class='table table-striped'>";
+			order[index].forEach(payment => {
+				innerTable += "<tr>";
+				innerTable += "<td>" + payment['method'] + "</td>";
+				innerTable += "<td>" + payment['amount'].toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); + "</td>";
+				innerTable += "</tr>";
+			})
+			innerTable += "</table>";
+			cellElement.innerHTML = innerTable;
+		}				 
+		else if (index == "total_paid_amount") {
+			let amount = 0;
+			order['payment_info'].forEach(payment => {amount += payment['amount']});
+			cellElement.innerHTML = amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+		}
+		else if(index == "sales_fee") {
+			let innerTable = "<table class='table table-striped'>";
+			order[index][0].forEach(fee => {
+				innerTable += "<tr>";
+				innerTable += "<td>" + fee['description'] + "</td>";
+				innerTable += "<td>" + fee['amount'].toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); + "</td>";
+				innerTable += "</tr>";
+			})
+			innerTable += "</table>";
+			cellElement.innerHTML = innerTable;
+		}
+		else if (index == "total_fee_amount") {
+			let amount = 0;
+			order['sales_fee'][0].forEach(fee => {amount += fee['amount']});
+			cellElement.innerHTML = amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });;
+		}			
 		else if (index == "payment_date") {
 			date = new Date(order[index]);
 			cellElement.innerHTML = date.toLocaleString('pt-BR');
 			cellElement.classList.add('text-end');
-		}		 
-		else if (index == "total_paid_amount") {
-			cellElement.innerHTML = order[index].toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 		}
 		else {
 			cellElement.innerHTML = order[index];
