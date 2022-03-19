@@ -38,7 +38,7 @@ class Mercadolivre extends Controller
             'limit'  => 1,
             'sort'   => 'date_desc',
             'order.status' => 'paid',
-            //'q'      => 5332358230//5332358229 //order_id
+            //'q'      => 5265607923//5332358230//5332358229 //order_id
         );
 
         if ($request->order_id) {
@@ -106,6 +106,7 @@ class Mercadolivre extends Controller
 
                 $response = array(
                     'sales_fee' => $this->responseFeeHandler($response->json()),
+                    'payer'     => $response->json()['payer'],
                     'payment_info'  =>  array(
                         'method' => $response['payment_method_id'],
                         'amount' => $response['transaction_amount'],
@@ -133,6 +134,8 @@ class Mercadolivre extends Controller
             );
 
             $paymentResponse['payment_info'][] = $payment_info;
+
+            $paymentResponse['payer'] = $response['payer'];
             
         }
 
@@ -218,7 +221,22 @@ class Mercadolivre extends Controller
                 'buyer'        => $this->responseBuyerHandler($order['buyer']),
             ];
 
-            $input = array_merge($input, $this->getPaymentDetails($payments));
+            $paymentDetails = $this->getPaymentDetails($payments);
+
+            //dd($paymentDetails['payer']);
+
+            if ($paymentDetails['payer']['first_name'] == "Splitter") {
+                unset($paymentDetails['payer']);
+            } else {
+
+                $input['buyer']['full_name']      = $paymentDetails['payer']['first_name'] . " "  . $paymentDetails['payer']['last_name'];
+                $input['buyer']['email']          = (isset($paymentDetails['payer']['email'])) ? $paymentDetails['payer']['email'] : "";
+                $input['buyer']['identification'] = (isset($paymentDetails['payer']['identification'])) ? $paymentDetails['payer']['identification'] : "";
+                $input['buyer']['phone']          = (isset($paymentDetails['payer']['phone'])) ? $paymentDetails['payer']['phone'] : "";
+                unset($paymentDetails['payer']);
+            }
+
+            $input = array_merge($input, $paymentDetails);
             
             $input['sales_fee'][] = $this->getShippingCost($order['shipping']['id']);
 

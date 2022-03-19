@@ -27,9 +27,9 @@
                     <th>Comprador</th>
                     <!-- <th>Descrição</th> -->
                     <th>Pagamentos</th>
-                    <th>Total Pagamento</th>
+                    <!-- <th>Total Pagamento</th> -->
                     <th>Taxas</th>
-                    <th>Total Taxas</th>
+                    <!-- <th>Total Taxas</th> -->
                     <th class='text-end'>Data do Pagto</th>
                 </tr>
             </thead>
