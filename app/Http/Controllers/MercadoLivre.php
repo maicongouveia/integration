@@ -30,7 +30,6 @@ class Mercadolivre extends Controller
             return null;
         }
     }
-
     
     public function getOrders(Request $request) 
     {
@@ -39,7 +38,7 @@ class Mercadolivre extends Controller
             'limit'  => 1,
             'sort'   => 'date_desc',
             'order.status' => 'paid',
-            //'q'      => 5332358230 //order_id
+            //'q'      => 5332358230//5332358229 //order_id
         );
 
         if ($request->order_id) {
@@ -57,6 +56,7 @@ class Mercadolivre extends Controller
                 return null;
             }
             return Response($this->responseOrdersHandler($response->json()), 200);
+            //return Response($response->json(), 200);
         }catch(Exception $e){
             Log::error("[getOrders]: " . $e->getMessage());
             dd("[getOrders]: " . $e->getMessage());
@@ -89,7 +89,6 @@ class Mercadolivre extends Controller
         $paymentResponse = array();
         $paymentResponse['sales_fee'] = array();
         $paymentResponse['payment_info'] = array();
-        $paymentResponse['payer'] = "";
 
         foreach ($payments as $payment) {
             try{
@@ -106,13 +105,12 @@ class Mercadolivre extends Controller
                 }
 
                 $response = array(
-                                    'sales_fee' => $this->responseFeeHandler($response->json()),
-                                    'payer'     => $this->responsePayerHandler($response->json()),
-                                    'payment_info'  =>  array(
-                                        'method' => $response['payment_method_id'],
-                                        'amount' => $response['transaction_amount'],
-                                    ),
-                                );
+                    'sales_fee' => $this->responseFeeHandler($response->json()),
+                    'payment_info'  =>  array(
+                        'method' => $response['payment_method_id'],
+                        'amount' => $response['transaction_amount'],
+                    ),
+                );
                 
             }catch(Exception $e){
                 $log = "[getPaymentDetails]: " . $e->getMessage() . 
@@ -135,20 +133,6 @@ class Mercadolivre extends Controller
             );
 
             $paymentResponse['payment_info'][] = $payment_info;
-
-            if (!empty($paymentResponse['payer'])) {
-                if (gettype($response['payer']) != "array") {                    
-                    if ($paymentResponse['payer'] != $response['payer']) {
-                        $paymentResponse['payer'] = array(
-                            $paymentResponse['payer'],
-                            $response['payer']
-                        );
-                    }
-                }
-            } else {
-                $paymentResponse['payer'] = $response['payer'];
-            }
-
             
         }
 
@@ -161,8 +145,8 @@ class Mercadolivre extends Controller
         $feeDetails = array();
 
         $typeDict = array(
-            'ml_fee'        => 'Gestão de Vendas',
-            'mp_fee'        => 'Tarifa de Venda',
+            'ml_fee' => 'Gestão de Vendas',
+            'mp_fee' => 'Tarifa de Venda',
         );
 
         foreach ($responseFeeDetails['fee_details'] as $fee) {
@@ -172,26 +156,34 @@ class Mercadolivre extends Controller
 
             if ($isType) { 
                 $description = $typeDict[$fee['type']];
+
+                try{
+                    $feeDetails[] = array(
+                        'amount'      => $fee['amount'],
+                        'description' => $description
+                    );
+                }
+                catch(Exception $e){
+                    Log::error("[responseFeeHandler]: " . $e->getMessage(). " - [Data]: " . $fee);
+                    dd("[responseFeeHandler]: " . $e->getMessage() . "- [Data]: " . $fee);
+                }
             }
 
-            try{
-                $feeDetails[] = array(
-                    'amount' => $fee['amount'],
-                    'description' => $description
-                );
-            }
-            catch(Exception $e){
-                Log::error("[responseFeeHandler]: " . $e->getMessage(). " - [Data]: " . $fee);
-                dd("[responseFeeHandler]: " . $e->getMessage() . "- [Data]: " . $fee);
-            }
+            
         }
 
         return $feeDetails;
     }
 
-    public function responsePayerHandler($responsePayment)
+    public function responseBuyerHandler($buyer)
     {
-        return $responsePayment['payer']['first_name'] . " " . $responsePayment['payer']['last_name'];
+        //dd($buyer);
+        return array(
+            'full_name'      => $buyer['nickname'],
+            'email'          => (isset($buyer['email'])) ? $buyer['email'] : "",
+            'identification' => (isset($buyer['identification'])) ? $buyer['identification'] : "",
+            'phone'          => (isset($buyer['phone'])) ? $buyer['phone'] : "",
+        );
     }
 
     public function getInvoice($orderId)
@@ -215,13 +207,15 @@ class Mercadolivre extends Controller
         $orders = array(); 
         
         foreach ($responseOrders['results'] as $order) {
-            //dd($order);
-            $payments = $order['payments'];
+            //dd($order['buyer']);
+            $payments = $order['payments'];            
+
             $input = [
-                'order_id' => $order['id'],
-                'invoice' => $this->getInvoice($order['id']),
-                'reason'   => $payments[0]['reason'],
+                'order_id'     => $order['id'],
+                'invoice'      => $this->getInvoice($order['id']),
+                'reason'       => $payments[0]['reason'],
                 'payment_date' => $payments[0]['date_approved'],
+                'buyer'        => $this->responseBuyerHandler($order['buyer']),
             ];
 
             $input = array_merge($input, $this->getPaymentDetails($payments));

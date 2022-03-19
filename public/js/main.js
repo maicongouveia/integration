@@ -70,7 +70,7 @@ function row(order){
 	const orderTable = [
 							'order_id',
 							'invoice',
-							'payer',
+							'buyer',
 							/* 'reason', */
 							'payment_info', 
 							'total_paid_amount',
@@ -81,10 +81,38 @@ function row(order){
 
 	orderTable.forEach((index) =>{
 		cellElement = document.createElement('td');
-		if(index == "payer") {
-			if(typeof(order[index]) != "array") {
-				cellElement.innerHTML = order[index];
+		if(index == "buyer") {
+			let buyer = order['buyer'];
+			let innerTable = "<table class='table table-striped'>";
+
+			innerTable += "<tr>";
+			innerTable += "<td>Nome</td>";
+			innerTable += "<td>" + buyer['full_name'] + "</td>";
+			innerTable += "</tr>";
+
+			if (buyer['email']) {
+				innerTable += "<tr>";
+				innerTable += "<td>Email</td>";
+				innerTable += "<td>" + buyer['email'] + "</td>";
+				innerTable += "</tr>";
 			}
+
+			if (buyer['number']) {
+				innerTable += "<tr>";
+				innerTable += "<td>Telefone</td>";
+				innerTable += "<td>" + buyer['area_code'] + " " + buyer['extension'] + " " + buyer['number'] + " " + "</td>";
+				innerTable += "</tr>";
+			}
+
+			if (buyer['identification']['type']) {
+				innerTable += "<tr>";
+				innerTable += "<td>" + buyer['identification']['type'] + "</td>";
+				innerTable += "<td>" + buyer['identification']['number'] + "</td>";
+				innerTable += "</tr>";
+			}
+
+			innerTable += "</table>";
+			cellElement.innerHTML = innerTable;
 		}				
 		/* else if (index == "reason") {
 			cellElement.innerHTML = order[index];
