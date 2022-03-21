@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Classes\Parser;
 use App\Models\Buyer;
 use App\Models\Fee;
 use App\Models\Order;
@@ -10,6 +11,7 @@ use DateTime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use SimpleXMLElement;
 
 class RoutineController extends Controller
 {
@@ -61,19 +63,19 @@ class RoutineController extends Controller
 
         $offset = 0;
 
-        $date = "2022-03-20";//date('Y-m-d');
+        $date = "2022-03-21";//date('Y-m-d');
 
         $stopFlag = false;
 
         while (!$stopFlag) {
             $orders = $this->getOrders($offset);
-
+            //dd($orders);
             foreach ($orders as $order) {
-                
+                         
                 $format_date = new DateTime($order['date_created']);
                 $order_date = date_format($format_date, 'Y-m-d');
-
-                if ($date == $order_date) {
+                
+                if ($offset < 2) {
                     $i = [
                         'order_id'    => $order['id'],
                         'created_in'  => $order['date_created'],
@@ -100,7 +102,7 @@ class RoutineController extends Controller
         }
 
         $orders = $o;
-
+        //dd($orders);
         if ($orders) {
             //Cadastra pedidos que ainda não estão na base
             foreach ($orders as $order) {
@@ -114,6 +116,7 @@ class RoutineController extends Controller
                             'invoice'          => null,
                             'payment_date'     => $date->format('Y-m-d H:i:s'),
                             'need_update_flag' => 1,
+                            'bling_send_flag'  => 0,
                         ]
                     );
                 }
@@ -211,12 +214,90 @@ class RoutineController extends Controller
                 Order::where('id', $order['id'])
                     ->update(['need_update_flag' => 0]);
 
-
             }
 
             // Enviar para o Bling
+            $orders_not_send = Order::where('bling_send_flag', false)
+                ->take(2)->get();
+
+            foreach ($orders_not_send as $order) {
+                // Contas a pagar
+                $contasAPagar = array();
+                //dd($order);
+                foreach ($order->fees as $fee) {
+                    $date = new DateTime($order['payment_date']);
+                    
+                    $conta = array(
+                            "dataEmissão"        => $date->format('d/m/Y'),
+                            "vencimentoOriginal" => $date->format('d/m/Y'),
+                            "competencia"        => $date->format('d/m/Y'),
+                            "nroDocumento"       => "",
+                            "valor"              => $fee['amount'], //obrigatorio
+                            "histórico"          => $fee['description'] . " " . $order['order_id'],
+                            "categoria"          => "",
+                            "portador"           => "",
+                            "idFormaPagamento"   => "",
+                            "ocorrencia"         => array(//obrigatorio
+                                                            "ocorrenciaTipo"      => "U", //obrigatorio
+                                                            "diaVencimento"       => "",
+                                                            "nroParcelas"         => "",
+                                                            "diaSemanaVencimento" => "",
+                            ),
+                            "fornecedor"         => array(//obrigatorio
+                                                            "nome"        => $order->buyer['name'],//obrigatorio
+                                                            "id"          => "",
+                                                            "cpf_cnpj"    => $order->buyer['identificationNumber'],
+                                                            "tipoPessoa"  => "",
+                                                            "ie_rg"       => "",
+                                                            "endereco"    => "",
+                                                            "numero"      => "",
+                                                            "complemento" => "",
+                                                            "cidade"      => "",
+                                                            "bairro"      => "",
+                                                            "cep"         => "",
+                                                            "uf"          => "",
+                                                            "email"       => $order->buyer['email'],
+                                                            "fone"        => $order->buyer['phone'],
+                                                            "celular"     => $order->buyer['phone'],
+                            ),
+                    );
+
+                    $parser = new Parser();
+                    $xml = $parser->arrayToXml($conta, "<contapagar/>");
+                    
+                    dd($this->blingContaAPagar($xml));
+                }
+
+                // Change need_update_flag
+                Order::where('id', $order['id'])
+                    ->update(['bling_send_flag' => true]);
+            }
+            
+            
+
         } else {
             dd("Não tem pedidos para processar");
+        }
+    }
+
+    public function blingContaAPagar($xml)
+    {
+        $request_data = array(
+            'apikey' => env('BLING_API_KEY'),
+            'xml'    => $xml,
+        );
+        //dd($request_data);
+        try{
+            $response = Http::asForm()->post('https://bling.com.br/b/Api/v2/contapagar/json/', $request_data);
+
+            if ($response->status() != 200) {
+                Log::warning("[blingContaAPagar]: Status: " . $response->status() . " - Body: " . $response->body());
+                return null;
+            }
+            return $response->json();
+        }catch(Exception $e){
+            Log::error("[blingContaAPagar]: " . $e->getMessage());
+            return null;
         }
     }
 }

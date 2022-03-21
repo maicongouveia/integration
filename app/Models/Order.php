@@ -21,5 +21,25 @@ class Order extends Model
      *
      * @var array
      */
-    protected $fillable = ['order_id', 'payment_date', 'need_update_flag'];
+    protected $fillable = [
+        'order_id', 
+        'payment_date', 
+        'need_update_flag',
+        'bling_send_flag',
+    ];
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function fees()
+    {
+        return $this->hasMany(Fee::class);
+    }
+
+    public function buyer()
+    {
+        return $this->hasOne(Buyer::class);
+    }
 }

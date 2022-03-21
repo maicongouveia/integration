@@ -21,6 +21,7 @@ class CreateOrderTable extends Migration
                 $table->string('invoice')->nullable();
                 $table->date('payment_date');
                 $table->boolean('need_update_flag');
+                $table->boolean('bling_send_flag');
                 $table->timestamps();
             }
         );
