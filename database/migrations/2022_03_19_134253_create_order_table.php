@@ -18,8 +18,9 @@ class CreateOrderTable extends Migration
             function (Blueprint $table) {
                 $table->id();
                 $table->string('order_id');
-                $table->string('invoice');
+                $table->string('invoice')->nullable();
                 $table->date('payment_date');
+                $table->boolean('need_update_flag');
                 $table->timestamps();
             }
         );

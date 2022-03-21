@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Mercadolivre;
 use App\Http\Controllers\MercadolivreWebhook;
+use App\Http\Controllers\RoutineController;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,4 +20,4 @@ Route::post('/webhook/mercadolivre', [MercadolivreWebhook::class, 'receive']);
 
 Route::get('/mercadolivre/orders', [MercadoLivre::class, 'getOrders']);
 
-Route::get('/mercadolivre/order/{order_id}', [MercadoLivre::class, 'getOrders']);
+Route::get('/routine', [RoutineController::class, 'routine']);

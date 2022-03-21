@@ -20,10 +20,10 @@ class CreateBuyerTable extends Migration
                 $table->unsignedBigInteger('order_id'); 
                 $table->foreign('order_id')->references('id')->on('order');
                 $table->string('name');
-                $table->string('email');
-                $table->string('identificationType');
-                $table->string('identificationNumber');
-                $table->string('phone');
+                $table->string('email')->nullable();
+                $table->string('identificationType')->nullable();
+                $table->string('identificationNumber')->nullable();
+                $table->string('phone')->nullable();
                 $table->timestamps();
             }
         );

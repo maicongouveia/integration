@@ -19,7 +19,7 @@ class CreatePaymentTable extends Migration
                 $table->id();
                 $table->unsignedBigInteger('order_id'); 
                 $table->foreign('order_id')->references('id')->on('order');
-                $table->string('description');
+                $table->string('method');
                 $table->string('amount');
                 $table->timestamps();
             }

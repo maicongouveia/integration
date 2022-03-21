@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use Exception;
@@ -20,7 +19,7 @@ class Mercadolivre extends Controller
             $response = Http::withHeaders($this->headers)->
                         get('https://api.mercadopago.com/v1/customers/' . $payerId, $this->headers);
 
-            if($response->status() != 200) {
+            if ($response->status() != 200) {
                 Log::warning("[getPayer]: Status: " . $response->status() . " - Body: " . $response->body());
                 return null;
             }
@@ -70,7 +69,7 @@ class Mercadolivre extends Controller
             $url = env("MERCADOLIVRE_API_URL")."/shipments/".$shippingId;
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get($url);
             if($response->status() != 200) {
-                Log::warning("[getShippingCost]: Status: " . $response->status() . " - Body: " . $response);
+                Log::warning("[getShippingCost]: Shipping ID: $shippingId - Status: " . $response->status() . " - Body: " . $response);
                 return null;
             }
             return array(
@@ -223,16 +222,14 @@ class Mercadolivre extends Controller
 
             $paymentDetails = $this->getPaymentDetails($payments);
 
-            //dd($paymentDetails['payer']);
-
             if ($paymentDetails['payer']['first_name'] == "Splitter") {
                 unset($paymentDetails['payer']);
             } else {
-
-                $input['buyer']['full_name']      = $paymentDetails['payer']['first_name'] . " "  . $paymentDetails['payer']['last_name'];
-                $input['buyer']['email']          = (isset($paymentDetails['payer']['email'])) ? $paymentDetails['payer']['email'] : "";
-                $input['buyer']['identification'] = (isset($paymentDetails['payer']['identification'])) ? $paymentDetails['payer']['identification'] : "";
-                $input['buyer']['phone']          = (isset($paymentDetails['payer']['phone'])) ? $paymentDetails['payer']['phone'] : "";
+                $payer = $paymentDetails['payer'];
+                $input['buyer']['full_name']      = $payer['first_name'] . " "  . $payer['last_name'];
+                $input['buyer']['email']          = (isset($payer['email'])) ? $payer['email'] : "";
+                $input['buyer']['identification'] = (isset($payer['identification'])) ? $payer['identification'] : "";
+                $input['buyer']['phone']          = (isset($payer['phone'])) ? $payer['phone'] : "";
                 unset($paymentDetails['payer']);
             }
 
