@@ -66,17 +66,23 @@ class Mercadolivre extends Controller
     public function getShippingCost($shippingId)
     {
         try{
-            $url = env("MERCADOLIVRE_API_URL")."/shipments/".$shippingId;
+
+            $url = env("MERCADOLIVRE_API_URL") . "/shipments/" . $shippingId;
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get($url);
-            if($response->status() != 200) {
-                Log::warning("[getShippingCost]: Shipping ID: $shippingId - Status: " . $response->status() . " - Body: " . $response);
+
+            if ($response->status() != 200) {
+                Log::warning(
+                    "[getShippingCost]: Shipping ID: $shippingId" . 
+                    " - Status: " . $response->status() . 
+                    " - Body: " . $response
+                );
                 return null;
             }
             return array(
                 'description' => 'Envio pelo Mercado Envios',
-                'amount' => $response['shipping_option']['list_cost'],
+                'amount'      => $response['shipping_option']['list_cost'],
             );
-        }catch(Exception $e){
+        } catch (Exception $e) {
             Log::error("[getShippingCost]: " . $e->getMessage());
             dd("[getShippingCost]: " . $e->getMessage());
             return null;
@@ -107,8 +113,10 @@ class Mercadolivre extends Controller
                     'sales_fee' => $this->responseFeeHandler($response->json()),
                     'payer'     => $response->json()['payer'],
                     'payment_info'  =>  array(
-                        'method' => $response['payment_method_id'],
-                        'amount' => $response['transaction_amount'],
+                        array(
+                            'method' => $response['payment_method_id'],
+                            'amount' => $response['transaction_amount'],
+                        ),
                     ),
                 );
                 
@@ -132,7 +140,7 @@ class Mercadolivre extends Controller
                 $response['payment_info']
             );
 
-            $paymentResponse['payment_info'][] = $payment_info;
+            $paymentResponse['payment_info'] = $payment_info;
 
             $paymentResponse['payer'] = $response['payer'];
             
@@ -166,12 +174,13 @@ class Mercadolivre extends Controller
                     );
                 }
                 catch(Exception $e){
-                    Log::error("[responseFeeHandler]: " . $e->getMessage(). " - [Data]: " . $fee);
+                    Log::error(
+                        "[responseFeeHandler]: " . $e->getMessage() . 
+                        " - [Data]: " . $fee
+                    );
                     dd("[responseFeeHandler]: " . $e->getMessage() . "- [Data]: " . $fee);
                 }
             }
-
-            
         }
 
         return $feeDetails;
@@ -236,7 +245,11 @@ class Mercadolivre extends Controller
             $input = array_merge($input, $paymentDetails);
             
             $input['sales_fee'][] = $this->getShippingCost($order['shipping']['id']);
-
+            Log::info(
+                "OrderID: " . $input['order_id'] . 
+                " - Fees: " . json_encode($input['sales_fee']) . 
+                " - Payments: " . json_encode($input['payment_info'])
+            );
             $orders[] = $input;
         }
         return $orders;

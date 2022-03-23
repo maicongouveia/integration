@@ -24,7 +24,7 @@ class RoutineController extends Controller
             'limit'  => $this->limit,
             'sort'   => 'date_desc',
             'order.status' => 'paid',
-            //'q'      => 5265607923//5332358230//5332358229 //order_id
+            //'q'      => 5351987526//5332358230//5332358229 //order_id
         );
 
         /* 
@@ -44,7 +44,10 @@ class RoutineController extends Controller
                         ->get($url, $request_data);
 
             if ($response->status() != 200) {
-                Log::warning("[getOrders]: Status: " . $response->status() . " - Body: " . $response->body());
+                Log::warning(
+                    "[getOrders]: Status: " . $response->status() . 
+                    " - Body: " . $response->body()
+                );
                 return null;
             }
             
@@ -56,7 +59,54 @@ class RoutineController extends Controller
             return null;
         }
     }
-    
+
+    public function blingContaAPagar($xml)
+    {
+        $request_data = array(
+            'apikey' => env('BLING_API_KEY'),
+            'xml'    => $xml,
+        );
+        //dd($request_data);
+        try{
+            $response = Http::asForm()->post('https://bling.com.br/b/Api/v2/contapagar/json/', $request_data);
+
+            if ($response->status() != 200) {
+                Log::warning(
+                    "[blingContaAPagar]: Status: " . $response->status() . 
+                    " - Body: " . $response->body()
+                );
+                return null;
+            }
+            Log::info("Conta a pagar enviada para Bling: " . $xml);
+            return $response->json();
+        }catch(Exception $e){
+            Log::error("[blingContaAPagar]: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function blingContaAReceber($xml)
+    {
+        $request_data = array(
+            'apikey' => env('BLING_API_KEY'),
+            'xml'    => $xml,
+        );
+        //dd($request_data);
+        try{
+            $response = Http::asForm()->post('https://bling.com.br/b/Api/v2/contareceber/json/', $request_data);
+
+            if ($response->status() != 200) {
+                Log::warning("[blingContaAReceber]: Status: " . $response->status() . " - Body: " . $response->body());
+                return null;
+            }
+            Log::info("Conta a receber enviada para Bling: " . $xml);
+            return $response->json();
+        }catch(Exception $e){
+            Log::error("[blingContaAReceber]: " . $e->getMessage());
+            return null;
+        }
+    }
+
     public function routine(Request $request)
     {
         $o = array();
@@ -68,6 +118,7 @@ class RoutineController extends Controller
         $stopFlag = false;
 
         while (!$stopFlag) {
+            
             $orders = $this->getOrders($offset);
             //dd($orders);
             foreach ($orders as $order) {
@@ -201,13 +252,15 @@ class RoutineController extends Controller
                 $fees[] = $mercadoLivre->getShippingCost($orders[$order['order_id']]['shipping_id']);
 
                 foreach ($fees as $fee) {
-                    Fee::create(
-                        [
-                            'order_id'    => $order['id'],
-                            'description' => $fee['description'], 
-                            'amount'      => $fee['amount'],
-                        ]
-                    );
+                    if ($fee['amount'] != 0) {
+                        Fee::create(
+                            [
+                                'order_id'    => $order['id'],
+                                'description' => $fee['description'],
+                                'amount'      => $fee['amount'],
+                            ]
+                        );
+                    }
                 }
 
                 // Change need_update_flag
@@ -226,17 +279,17 @@ class RoutineController extends Controller
                 //dd($order);
                 foreach ($order->fees as $fee) {
                     $date = new DateTime($order['payment_date']);
-                    
+                    $nroDocumento = ($order->buyer['identificationNumber']) ? $order->buyer['identificationNumber'] : $order['order_id'];
                     $conta = array(
                             "dataEmissão"        => $date->format('d/m/Y'),
                             "vencimentoOriginal" => $date->format('d/m/Y'),
                             "competencia"        => $date->format('d/m/Y'),
-                            "nroDocumento"       => "",
+                            "nroDocumento"       => $nroDocumento,
                             "valor"              => $fee['amount'], //obrigatorio
                             "histórico"          => $fee['description'] . " " . $order['order_id'],
-                            "categoria"          => "",
-                            "portador"           => "",
-                            "idFormaPagamento"   => "",
+                            "categoria"          => "4.1.01.06.11 Correios e malotes",
+                            "portador"           => "1.1.01.02.03 MercadoPago ",
+                            "idFormaPagamento"   => 1430675,
                             "ocorrencia"         => array(//obrigatorio
                                                             "ocorrenciaTipo"      => "U", //obrigatorio
                                                             "diaVencimento"       => "",
@@ -265,8 +318,49 @@ class RoutineController extends Controller
                     $parser = new Parser();
                     $xml = $parser->arrayToXml($conta, "<contapagar/>");
                     
-                    dd($this->blingContaAPagar($xml));
+                    //$this->blingContaAPagar($xml);
                 }
+
+                $contaAReceberAmount = 0;
+
+                $historico = "Ref. ao pedido de venda nº " . $order['order_id'] .
+                             " | Método de pagamento:";
+
+                foreach ($order->payments as $payment) {
+                    $historico .= " ".$payment['method'];
+                    $contaAReceberAmount += $payment['amount'];
+                }
+
+                $date = new DateTime($order['payment_date']);
+                $nroDocumento = ($order->buyer['identificationNumber']) ? $order->buyer['identificationNumber'] : $order['order_id'];
+
+                $contaAReceber = array(                    
+                    "dataEmissao"  => $date->format('d/m/Y'),
+                    "vencimentoOriginal" => $date->format('d/m/Y'),
+                    "competencia"  => $date->format('d/m/Y'),
+                    "nroDocumento" => $nroDocumento,
+                    "valor"        => $contaAReceberAmount, //obrigatorio
+                    "historico"    => $historico,
+                    "categoria"    => "3.1.01.01.02 Revenda Mercadoria (Terceiros)",
+                    "idFormaPagamento" => "1430675",
+                    "portador"   => "1.1.01.02.03 MercadoPago ",
+                    "vendedor"   => "Mercado Livre Full",
+                    "ocorrencia" => array(//obrigatorio
+                        "ocorrenciaTipo" => "U",//obrigatorio
+                        "diaVencimento"  => "",
+                        "nroParcelas"    => ""
+                    ),
+                    "cliente" => array(//obrigatorio
+                        "nome"     => $order->buyer['name'],//obrigatorio
+                        "cpf_cnpj" => $order->buyer['identificationNumber'],
+                        "email"    => $order->buyer['email'],
+                    ),
+                );
+
+                $parser = new Parser();
+                $xml = $parser->arrayToXml($contaAReceber, "<contareceber/>");
+
+                //$this->blingContaAReceber($xml);
 
                 // Change need_update_flag
                 Order::where('id', $order['id'])
@@ -277,27 +371,6 @@ class RoutineController extends Controller
 
         } else {
             dd("Não tem pedidos para processar");
-        }
-    }
-
-    public function blingContaAPagar($xml)
-    {
-        $request_data = array(
-            'apikey' => env('BLING_API_KEY'),
-            'xml'    => $xml,
-        );
-        //dd($request_data);
-        try{
-            $response = Http::asForm()->post('https://bling.com.br/b/Api/v2/contapagar/json/', $request_data);
-
-            if ($response->status() != 200) {
-                Log::warning("[blingContaAPagar]: Status: " . $response->status() . " - Body: " . $response->body());
-                return null;
-            }
-            return $response->json();
-        }catch(Exception $e){
-            Log::error("[blingContaAPagar]: " . $e->getMessage());
-            return null;
         }
     }
 }
