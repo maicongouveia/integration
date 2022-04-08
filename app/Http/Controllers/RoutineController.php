@@ -24,14 +24,12 @@ class RoutineController extends Controller
             'limit'  => $this->limit,
             'sort'   => 'date_desc',
             'order.status' => 'paid',
-            //'q'      => 5351987526//5332358230//5332358229 //order_id
         );
-
-        /* 
-        if ($request->order_id) {
-            $request_data['q'] = $request->order_id;
+        
+        if (env('TEST_MODE')) {
+            $request_data['q'] = env('ORDER_ID');
         }   
-        */
+        
 
         if ($offset) {
             $request_data['offset'] = $offset;
@@ -122,11 +120,12 @@ class RoutineController extends Controller
             $orders = $this->getOrders($offset);
             //dd($orders);
             foreach ($orders as $order) {
-                         
+
                 $format_date = new DateTime($order['date_created']);
                 $order_date = date_format($format_date, 'Y-m-d');
                 
-                if ($offset < 2) {
+                
+                    //dd($offset);
                     $i = [
                         'order_id'    => $order['id'],
                         'created_in'  => $order['date_created'],
@@ -140,16 +139,20 @@ class RoutineController extends Controller
                         $i['payments'][] = ['id' => $payment['id']];
                     }                   
 
+                    Log::info("Adding new order - Order ID: " . $order['id']);
                     $o[$i['order_id']] = $i;
 
-                } else {
-                    $stopFlag = true;
-                    break;
-                }
+                
             }
-
-            $offset++;
-            
+            if ($offset < 2) {
+                Log::info("Offset inside limit. Offset: " . $offset);
+            } else {
+                Log::info("Changing flag to true. Offset: " . $offset);
+                $stopFlag = true;
+                break;
+            }
+            Log::info("Offset: " . $offset);
+            $offset++;            
         }
 
         $orders = $o;
@@ -278,15 +281,26 @@ class RoutineController extends Controller
                 $contasAPagar = array();
                 //dd($order);
                 foreach ($order->fees as $fee) {
+                    //dd($order);
                     $date = new DateTime($order['payment_date']);
-                    $nroDocumento = ($order->buyer['identificationNumber']) ? $order->buyer['identificationNumber'] : $order['order_id'];
+
+                    $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
+                    
+                    //Histórico
+                    $historico = "Numero do Pedido: " . $order['order_id'] . " | Descrição: " . $fee['description'];
+                    if ($order['invoice']) {
+                        $historico = $historico . " | Nota Fiscal: " . $order['invoice'];
+                    } else {
+                        $historico = $historico . " | Nota Fiscal: Não foi emitida";
+                    }
+
                     $conta = array(
                             "dataEmissão"        => $date->format('d/m/Y'),
                             "vencimentoOriginal" => $date->format('d/m/Y'),
                             "competencia"        => $date->format('d/m/Y'),
                             "nroDocumento"       => $nroDocumento,
                             "valor"              => $fee['amount'], //obrigatorio
-                            "histórico"          => $fee['description'] . " " . $order['order_id'],
+                            "histórico"          => $historico,
                             "categoria"          => "4.1.01.06.11 Correios e malotes",
                             "portador"           => "1.1.01.02.03 MercadoPago ",
                             "idFormaPagamento"   => 1430675,
@@ -317,13 +331,15 @@ class RoutineController extends Controller
 
                     $parser = new Parser();
                     $xml = $parser->arrayToXml($conta, "<contapagar/>");
-                    
-                    //$this->blingContaAPagar($xml);
+                    //dd($xml);
+                    if (env('SEND_TO_BLING')) {
+                        $this->blingContaAPagar($xml);
+                    }
                 }
 
                 $contaAReceberAmount = 0;
 
-                $historico = "Ref. ao pedido de venda nº " . $order['order_id'] .
+                $historico = "Ref. ao pedido de venda nº " . $order['invoice'] .
                              " | Método de pagamento:";
 
                 foreach ($order->payments as $payment) {
@@ -332,7 +348,7 @@ class RoutineController extends Controller
                 }
 
                 $date = new DateTime($order['payment_date']);
-                $nroDocumento = ($order->buyer['identificationNumber']) ? $order->buyer['identificationNumber'] : $order['order_id'];
+                $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
 
                 $contaAReceber = array(                    
                     "dataEmissao"  => $date->format('d/m/Y'),
@@ -359,12 +375,17 @@ class RoutineController extends Controller
 
                 $parser = new Parser();
                 $xml = $parser->arrayToXml($contaAReceber, "<contareceber/>");
+                //dd($xml);
+                if (env('SEND_TO_BLING')) {
+                    $this->blingContaAReceber($xml);
+                }
 
-                //$this->blingContaAReceber($xml);
-
-                // Change need_update_flag
-                Order::where('id', $order['id'])
-                    ->update(['bling_send_flag' => true]);
+                
+                // Change bling_send_flag
+                if (env('SEND_TO_BLING')) {
+                    Order::where('id', $order['id'])
+                        ->update(['bling_send_flag' => true]);
+                }
             }
             
             
