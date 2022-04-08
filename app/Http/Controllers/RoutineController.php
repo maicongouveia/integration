@@ -105,6 +105,56 @@ class RoutineController extends Controller
         }
     }
 
+    public function blingBaixaContaAPagar($id, $xml)
+    {
+        $request_data = array(
+            'apikey' => env('BLING_API_KEY'),
+            'xml'    => $xml,
+        );
+        //dd($request_data);
+        try{
+            $response = Http::asForm()->put('https://bling.com.br/b/Api/v2/contapagar/' . $id, $request_data);
+
+            if ($response->status() != 200) {
+                Log::warning(
+                    "[blingBaixaContaAPagar]: Status: " . $response->status() . 
+                    " - Body: " . $response->body()
+                );
+                return null;
+            }
+            Log::info("Baixa confirmada de conta a pagar registrada no Bling: " . $xml);
+            return $response->json();
+        }catch(Exception $e){
+            Log::error("[blingBaixaContaAPagar]: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function blingBaixaContaAReceber($id, $xml)
+    {
+        $request_data = array(
+            'apikey' => env('BLING_API_KEY'),
+            'xml'    => $xml,
+        );
+        //dd($request_data);
+        try{
+            $response = Http::asForm()->put('https://bling.com.br/b/Api/v2/contareceber/' . $id, $request_data);
+
+            if ($response->status() != 200) {
+                Log::warning(
+                    "[blingBaixaContaAReceber]: Status: " . $response->status() . 
+                    " - Body: " . $response->body()
+                );
+                return null;
+            }
+            Log::info("Baixa confirmada de conta a receber registrada no Bling: " . $xml);
+            return $response->json();
+        }catch(Exception $e){
+            Log::error("[blingBaixaContaAReceber]: " . $e->getMessage());
+            return null;
+        }
+    }
+
     public function routine(Request $request)
     {
         $o = array();
@@ -333,7 +383,29 @@ class RoutineController extends Controller
                     $xml = $parser->arrayToXml($conta, "<contapagar/>");
                     //dd($xml);
                     if (env('SEND_TO_BLING')) {
-                        $this->blingContaAPagar($xml);
+                        $response = $this->blingContaAPagar($xml);
+                        // Dar baixar contas a pagar
+                        if ($response) {
+                            $contaAPagarID = $response['retorno']['contapagar'][0]['contapagar']['id'];
+
+                            $dataLiquidacao = new DateTime('NOW');
+
+                            $xmlBaixa = array(
+                                "contapagar" => array(
+                                    "dataLiquidacao" => $dataLiquidacao->format('d/m/Y'),
+                                    "juros"          => "",
+                                    "desconto"       => "",
+                                    "acrescimo"      => "",
+                                    "tarifa"         => ""
+                                )
+                            );
+
+                            $parser = new Parser();
+                            $xmlBaixa = $parser->arrayToXml($xmlBaixa, "<contapagar/>");
+
+                            $this->blingBaixaContaAPagar($contaAPagarID, $xmlBaixa);
+
+                        }
                     }
                 }
 
@@ -378,6 +450,28 @@ class RoutineController extends Controller
                 //dd($xml);
                 if (env('SEND_TO_BLING')) {
                     $this->blingContaAReceber($xml);
+                    // Dar baixar contas a receber
+                    if ($response) {
+                        $contaAReceberID = $response['retorno']['contasreceber'][0]['contareceber']['id'];
+
+                        $dataLiquidacao = new DateTime('NOW');
+
+                        $xmlBaixa = array(
+                            "contasreceber" => array(
+                                "dataLiquidacao" => $dataLiquidacao->format('d/m/Y'),
+                                "juros"          => "",
+                                "desconto"       => "",
+                                "acrescimo"      => "",
+                                "tarifa"         => ""
+                            )
+                        );
+
+                        $parser = new Parser();
+                        $xmlBaixa = $parser->arrayToXml($xmlBaixa, "<contasreceber/>");
+
+                        $this->blingBaixaContaAReceber($contaAReceberID, $xmlBaixa);
+
+                    }
                 }
 
                 
