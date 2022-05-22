@@ -1,60 +1,103 @@
 <?php
 namespace App\Http\Controllers;
 
+use Exception;
+use DateTime;
 use App\Classes\Parser;
 use App\Models\Buyer;
 use App\Models\Fee;
 use App\Models\Order;
 use App\Models\Payment;
-use Exception;
-use DateTime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
-use SimpleXMLElement;
 
 class RoutineController extends Controller
 {
     public $limit = 50;
+    public $termExtensionInDays = 28;
 
-    public function getOrders($offset = null)
+    public function getOrdersMercadoLivre($offset = null)
     {
         $request_data = array(
             'seller' => env('MERCADOLIVRE_SELLER_ID'),
             'limit'  => $this->limit,
             'sort'   => 'date_desc',
-            'order.status' => 'paid',
+            //'order.status' => 'paid',
         );
-        
+
         if (env('TEST_MODE')) {
+            Log::info(
+                "[getOrders]: [Test Mode On] ORDER_ID: " . env('ORDER_ID')
+            );
             $request_data['q'] = env('ORDER_ID');
-        }   
-        
+        }
+
 
         if ($offset) {
             $request_data['offset'] = $offset;
-        } 
+        }
 
         try{
-            $url = env("MERCADOLIVRE_API_URL") . "/orders/search"; 
+            $url = env("MERCADOLIVRE_API_URL") . "/orders/search";
 
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
                         ->get($url, $request_data);
 
             if ($response->status() != 200) {
                 Log::warning(
-                    "[getOrders]: Status: " . $response->status() . 
+                    "[getOrders]: Status: " . $response->status() .
                     " - Body: " . $response->body()
                 );
                 return null;
             }
-            
+
+            Log::info(
+                "[getOrders]: Status: " . $response->status() .
+                " - Body: " . $response->body()
+            );
+
             return $response->json()['results'];
 
         }catch(Exception $e){
             Log::error("[getOrders]: " . $e->getMessage());
             dd("[getOrders]: " . $e->getMessage());
             return null;
+        }
+    }
+
+    public function registerOrdersLocal($orders)
+    {
+        //Cadastra pedidos que ainda não estão na base
+        foreach ($orders as $order) {
+            $exists = Order::where('order_id', $order['order_id'])->first();
+
+            if (!$exists) {
+                $date = new DateTime($order['created_in']);
+                Order::create(
+                    [
+                        'order_id'         => $order['order_id'],
+                        'invoice'          => null,
+                        'payment_date'     => $date->format('Y-m-d H:i:s'),
+                        'need_update_flag' => 1,
+                        'bling_send_flag'  => 0,
+                    ]
+                );
+
+                $orderCreated = Order::where('order_id', $order['order_id'])->first();
+
+                $payments_ids = $order['payments_ids'];
+
+                foreach ($payments_ids as $payment_id) {
+                    Payment::create(
+                        [
+                            'order_id'    => $orderCreated['id'],
+                            'payment_id'  => $payment_id,
+                        ]
+                    );
+                }
+
+            }
         }
     }
 
@@ -70,7 +113,7 @@ class RoutineController extends Controller
 
             if ($response->status() != 200) {
                 Log::warning(
-                    "[blingContaAPagar]: Status: " . $response->status() . 
+                    "[blingContaAPagar]: Status: " . $response->status() .
                     " - Body: " . $response->body()
                 );
                 return null;
@@ -117,7 +160,7 @@ class RoutineController extends Controller
 
             if ($response->status() != 200) {
                 Log::warning(
-                    "[blingBaixaContaAPagar]: Status: " . $response->status() . 
+                    "[blingBaixaContaAPagar]: Status: " . $response->status() .
                     " - Body: " . $response->body()
                 );
                 return null;
@@ -142,7 +185,7 @@ class RoutineController extends Controller
 
             if ($response->status() != 200) {
                 Log::warning(
-                    "[blingBaixaContaAReceber]: Status: " . $response->status() . 
+                    "[blingBaixaContaAReceber]: Status: " . $response->status() .
                     " - Body: " . $response->body()
                 );
                 return null;
@@ -155,309 +198,181 @@ class RoutineController extends Controller
         }
     }
 
-    public function routine(Request $request)
+    public function updateOrdersData($quantity = null)
     {
-        $o = array();
+        if ($quantity == null) { $quantity = 1;}
 
-        $offset = 0;
+        //Preenche dados que faltam
+        $orders_registered = Order::where('need_update_flag', true)
+            ->take($quantity)->get();
 
-        $date = "2022-03-21";//date('Y-m-d');
+        $mercadoLivre = new Mercadolivre();
 
-        $stopFlag = false;
+        foreach ($orders_registered as $order) {
 
-        while (!$stopFlag) {
-            
-            $orders = $this->getOrders($offset);
-            //dd($orders);
-            foreach ($orders as $order) {
+            //Pegar Nota Fiscal
+            $invoice_number = $mercadoLivre->getInvoice($order['order_id']);
 
-                $format_date = new DateTime($order['date_created']);
-                $order_date = date_format($format_date, 'Y-m-d');
-                
-                
-                    //dd($offset);
-                    $i = [
-                        'order_id'    => $order['id'],
-                        'created_in'  => $order['date_created'],
-                        'buyer'       => $order['buyer']['nickname'],
-                        'shipping_id' => $order['shipping']['id'],
-                    ];
-
-                    $i['payments'] = array();
-
-                    foreach ($order['payments'] as $payment) {
-                        $i['payments'][] = ['id' => $payment['id']];
-                    }                   
-
-                    Log::info("Adding new order - Order ID: " . $order['id']);
-                    $o[$i['order_id']] = $i;
-
-                
-            }
-            if ($offset < 2) {
-                Log::info("Offset inside limit. Offset: " . $offset);
-            } else {
-                Log::info("Changing flag to true. Offset: " . $offset);
-                $stopFlag = true;
-                break;
-            }
-            Log::info("Offset: " . $offset);
-            $offset++;            
-        }
-
-        $orders = $o;
-        //dd($orders);
-        if ($orders) {
-            //Cadastra pedidos que ainda não estão na base
-            foreach ($orders as $order) {
-                $exists = Order::where('order_id', $order['order_id'])->first();
-
-                if (!$exists) {
-                    $date = new DateTime($order['created_in']);
-                    Order::create(
-                        [
-                            'order_id'         => $order['order_id'],
-                            'invoice'          => null,
-                            'payment_date'     => $date->format('Y-m-d H:i:s'),
-                            'need_update_flag' => 1,
-                            'bling_send_flag'  => 0,
-                        ]
-                    );
-                }
-            }
-
-            //Preenche dados que faltam
-            $orders_registered = Order::where('need_update_flag', true)
-                ->take(2)->get();
-
-            $mercadoLivre = new Mercadolivre();
-
-            foreach ($orders_registered as $order) {
-
-                //Pegar Nota Fiscal
-                $invoice_number = $mercadoLivre->getInvoice($order['order_id']);
-
-                if ($invoice_number) {
-                    Order::where('id', $order['id'])
+            if ($invoice_number) {
+                Order::where('id', $order['id'])
                     ->update(['invoice' => $invoice_number]);
-                }
-                
-                $payments = $orders[$order['order_id']]['payments'];
+            }
 
-                $paymentDetails = $mercadoLivre->getPaymentDetails($payments);
+            $payments = Payment::where('order_id', $order['id'])->get();
 
-                //Buyer
+            $paymentDetails = $mercadoLivre->getPaymentDetails($payments);
 
-                if ($paymentDetails['payer']['first_name'] == "Splitter") {
-                    Buyer::create(
-                        [
-                            'order_id' => $order['id'],
-                            'name' => $orders[$order['order_id']]['buyer'],
-                        ]
-                    );
-                    unset($paymentDetails['payer']);
-                } else {
-                    $payer = $paymentDetails['payer'];
+            //Buyer
 
-                    $phone = "";
+            if ($paymentDetails['payer']['first_name'] == "Splitter") {
+                Buyer::create(
+                    [
+                        'order_id' => $order['id'],
+                        'name' => $orders[$order['order_id']]['buyer'],
+                    ]
+                );
+                unset($paymentDetails['payer']);
+            } else {
+                $payer = $paymentDetails['payer'];
 
-                    if ($payer['phone']['area_code']) {
-                        $phone = $phone . $payer['phone']['area_code'];
-                    }
+                $phone = "";
 
-                    if ($payer['phone']['extension']) {
-                        $phone = $phone . $payer['phone']['extension'];
-                    }
-
-                    if ($payer['phone']['number']) {
-                        $phone = $phone . $payer['phone']['number'];
-                    }
-
-                    Buyer::create(
-                        [
-                            'order_id' => $order['id'],
-                            'name' => $payer['first_name'] . " "  . $payer['last_name'],
-                            'email' => $payer['email'],
-                            'identificationType' => $payer['identification']['type'],
-                            'identificationNumber' => $payer['identification']['number'],
-                            'phone' => $phone,
-                        ]
-                    );
+                if ($payer['phone']['area_code']) {
+                    $phone = $phone . $payer['phone']['area_code'];
                 }
 
-                // Payments
+                if ($payer['phone']['extension']) {
+                    $phone = $phone . $payer['phone']['extension'];
+                }
 
-                $payments = $paymentDetails['payment_info'];
+                if ($payer['phone']['number']) {
+                    $phone = $phone . $payer['phone']['number'];
+                }
 
-                foreach ($payments as $payment) {
-                    Payment::create(
+                Buyer::create(
+                    [
+                        'order_id' => $order['id'],
+                        'name' => $payer['first_name'] . " "  . $payer['last_name'],
+                        'email' => $payer['email'],
+                        'identificationType' => $payer['identification']['type'],
+                        'identificationNumber' => $payer['identification']['number'],
+                        'phone' => $phone,
+                    ]
+                );
+            }
+
+            // Payments
+
+            $payments = $paymentDetails['payment_info'];
+
+            foreach ($payments as $payment) {
+                Payment::create(
+                    [
+                        'order_id'    => $order['id'],
+                        'method'      => $payment['method'],
+                        'amount'      => $payment['amount'],
+                    ]
+                );
+            }
+
+            // Fee
+
+            $fees   = $paymentDetails['sales_fee'];
+            $fees[] = $mercadoLivre->getShippingCost($orders[$order['order_id']]['shipping_id']);
+
+            foreach ($fees as $fee) {
+                if ($fee['amount'] != 0) {
+                    Fee::create(
                         [
                             'order_id'    => $order['id'],
-                            'method'      => $payment['method'], 
-                            'amount'      => $payment['amount'],
+                            'description' => $fee['description'],
+                            'amount'      => $fee['amount'],
                         ]
                     );
                 }
-
-                // Fee
-
-                $fees   = $paymentDetails['sales_fee'];
-                $fees[] = $mercadoLivre->getShippingCost($orders[$order['order_id']]['shipping_id']);
-
-                foreach ($fees as $fee) {
-                    if ($fee['amount'] != 0) {
-                        Fee::create(
-                            [
-                                'order_id'    => $order['id'],
-                                'description' => $fee['description'],
-                                'amount'      => $fee['amount'],
-                            ]
-                        );
-                    }
-                }
-
-                // Change need_update_flag
-                Order::where('id', $order['id'])
-                    ->update(['need_update_flag' => 0]);
-
             }
 
-            // Enviar para o Bling
-            $orders_not_send = Order::where('bling_send_flag', false)
-                ->take(2)->get();
+            // Change need_update_flag
+            Order::where('id', $order['id'])
+                ->update(['need_update_flag' => 0]);
 
-            foreach ($orders_not_send as $order) {
-                // Contas a pagar
-                $contasAPagar = array();
+        }
+    }
+
+    public function registerOrdersBling($quantity = null)
+    {
+        // Enviar para o Bling
+        $orders_not_send = Order::where('bling_send_flag', false)
+            ->where('need_update_flag', false)
+            ->take(2)->get();
+
+        foreach ($orders_not_send as $order) {
+            // Contas a pagar
+            $contasAPagar = array();
+            //dd($order);
+            foreach ($order->fees as $fee) {
                 //dd($order);
-                foreach ($order->fees as $fee) {
-                    //dd($order);
-                    $date = new DateTime($order['payment_date']);
-
-                    $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
-                    
-                    //Histórico
-                    $historico = "Numero do Pedido: " . $order['order_id'] . " | Descrição: " . $fee['description'];
-                    if ($order['invoice']) {
-                        $historico = $historico . " | Nota Fiscal: " . $order['invoice'];
-                    } else {
-                        $historico = $historico . " | Nota Fiscal: Não foi emitida";
-                    }
-
-                    $conta = array(
-                            "dataEmissão"        => $date->format('d/m/Y'),
-                            "vencimentoOriginal" => $date->format('d/m/Y'),
-                            "competencia"        => $date->format('d/m/Y'),
-                            "nroDocumento"       => $nroDocumento,
-                            "valor"              => $fee['amount'], //obrigatorio
-                            "histórico"          => $historico,
-                            "categoria"          => "4.1.01.06.11 Correios e malotes",
-                            "portador"           => "1.1.01.02.03 MercadoPago ",
-                            "idFormaPagamento"   => 1430675,
-                            "ocorrencia"         => array(//obrigatorio
-                                                            "ocorrenciaTipo"      => "U", //obrigatorio
-                                                            "diaVencimento"       => "",
-                                                            "nroParcelas"         => "",
-                                                            "diaSemanaVencimento" => "",
-                            ),
-                            "fornecedor"         => array(//obrigatorio
-                                                            "nome"        => $order->buyer['name'],//obrigatorio
-                                                            "id"          => "",
-                                                            "cpf_cnpj"    => $order->buyer['identificationNumber'],
-                                                            "tipoPessoa"  => "",
-                                                            "ie_rg"       => "",
-                                                            "endereco"    => "",
-                                                            "numero"      => "",
-                                                            "complemento" => "",
-                                                            "cidade"      => "",
-                                                            "bairro"      => "",
-                                                            "cep"         => "",
-                                                            "uf"          => "",
-                                                            "email"       => $order->buyer['email'],
-                                                            "fone"        => $order->buyer['phone'],
-                                                            "celular"     => $order->buyer['phone'],
-                            ),
-                    );
-
-                    $parser = new Parser();
-                    $xml = $parser->arrayToXml($conta, "<contapagar/>");
-                    //dd($xml);
-                    if (env('SEND_TO_BLING')) {
-                        $response = $this->blingContaAPagar($xml);
-                        // Dar baixar contas a pagar
-                        if ($response) {
-                            $contaAPagarID = $response['retorno']['contapagar'][0]['contapagar']['id'];
-
-                            $dataLiquidacao = new DateTime('NOW');
-
-                            $xmlBaixa = array(
-                                "contapagar" => array(
-                                    "dataLiquidacao" => $dataLiquidacao->format('d/m/Y'),
-                                    "juros"          => "",
-                                    "desconto"       => "",
-                                    "acrescimo"      => "",
-                                    "tarifa"         => ""
-                                )
-                            );
-
-                            $parser = new Parser();
-                            $xmlBaixa = $parser->arrayToXml($xmlBaixa, "<contapagar/>");
-
-                            $this->blingBaixaContaAPagar($contaAPagarID, $xmlBaixa);
-
-                        }
-                    }
-                }
-
-                $contaAReceberAmount = 0;
-
-                $historico = "Ref. ao pedido de venda nº " . $order['invoice'] .
-                             " | Método de pagamento:";
-
-                foreach ($order->payments as $payment) {
-                    $historico .= " ".$payment['method'];
-                    $contaAReceberAmount += $payment['amount'];
-                }
-
                 $date = new DateTime($order['payment_date']);
+                $dataWithTermExtension = date('d/m/Y', strtotime("+". $this->termExtensionInDays ." days",strtotime($order['payment_date'])));
+
                 $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
 
-                $contaAReceber = array(                    
-                    "dataEmissao"  => $date->format('d/m/Y'),
-                    "vencimentoOriginal" => $date->format('d/m/Y'),
-                    "competencia"  => $date->format('d/m/Y'),
-                    "nroDocumento" => $nroDocumento,
-                    "valor"        => $contaAReceberAmount, //obrigatorio
-                    "historico"    => $historico,
-                    "categoria"    => "3.1.01.01.02 Revenda Mercadoria (Terceiros)",
-                    "idFormaPagamento" => "1430675",
-                    "portador"   => "1.1.01.02.03 MercadoPago ",
-                    "vendedor"   => "Mercado Livre Full",
-                    "ocorrencia" => array(//obrigatorio
-                        "ocorrenciaTipo" => "U",//obrigatorio
-                        "diaVencimento"  => "",
-                        "nroParcelas"    => ""
-                    ),
-                    "cliente" => array(//obrigatorio
-                        "nome"     => $order->buyer['name'],//obrigatorio
-                        "cpf_cnpj" => $order->buyer['identificationNumber'],
-                        "email"    => $order->buyer['email'],
-                    ),
+                //Histórico
+                $historico = "Numero do Pedido: " . $order['order_id'] . " | Descrição: " . $fee['description'];
+                if ($order['invoice']) {
+                    $historico = $historico . " | Nota Fiscal: " . $order['invoice'];
+                } else {
+                    $historico = $historico . " | Nota Fiscal: Não foi emitida";
+                }
+
+                $conta = array(
+                        "dataEmissão"        => $date->format('d/m/Y'),
+                        "vencimentoOriginal" => $dataWithTermExtension,
+                        "competencia"        => $date->format('d/m/Y'),
+                        "nroDocumento"       => $nroDocumento,
+                        "valor"              => $fee['amount'], //obrigatorio
+                        "histórico"          => $historico,
+                        "categoria"          => "4.1.01.06.11 Correios e malotes",
+                        "portador"           => "1.1.01.02.03 MercadoPago ",
+                        "idFormaPagamento"   => 1430675,
+                        "ocorrencia"         => array(//obrigatorio
+                                                        "ocorrenciaTipo"      => "U", //obrigatorio
+                                                        "diaVencimento"       => "",
+                                                        "nroParcelas"         => "",
+                                                        "diaSemanaVencimento" => "",
+                        ),
+                        "fornecedor"         => array(//obrigatorio
+                                                        "nome"        => $order->buyer['name'],//obrigatorio
+                                                        "id"          => "",
+                                                        "cpf_cnpj"    => $order->buyer['identificationNumber'],
+                                                        "tipoPessoa"  => "",
+                                                        "ie_rg"       => "",
+                                                        "endereco"    => "",
+                                                        "numero"      => "",
+                                                        "complemento" => "",
+                                                        "cidade"      => "",
+                                                        "bairro"      => "",
+                                                        "cep"         => "",
+                                                        "uf"          => "",
+                                                        "email"       => $order->buyer['email'],
+                                                        "fone"        => $order->buyer['phone'],
+                                                        "celular"     => $order->buyer['phone'],
+                        ),
                 );
 
                 $parser = new Parser();
-                $xml = $parser->arrayToXml($contaAReceber, "<contareceber/>");
+                $xml = $parser->arrayToXml($conta, "<contapagar/>");
                 //dd($xml);
                 if (env('SEND_TO_BLING')) {
-                    $this->blingContaAReceber($xml);
-                    // Dar baixar contas a receber
-                    if ($response) {
-                        $contaAReceberID = $response['retorno']['contasreceber'][0]['contareceber']['id'];
+                    $response = $this->blingContaAPagar($xml);
+                    // Dar baixar contas a pagar
+                    /* if ($response) {
+                        $contaAPagarID = $response['retorno']['contapagar'][0]['contapagar']['id'];
 
                         $dataLiquidacao = new DateTime('NOW');
 
                         $xmlBaixa = array(
-                            "contasreceber" => array(
+                            "contapagar" => array(
                                 "dataLiquidacao" => $dataLiquidacao->format('d/m/Y'),
                                 "juros"          => "",
                                 "desconto"       => "",
@@ -467,25 +382,146 @@ class RoutineController extends Controller
                         );
 
                         $parser = new Parser();
-                        $xmlBaixa = $parser->arrayToXml($xmlBaixa, "<contasreceber/>");
+                        $xmlBaixa = $parser->arrayToXml(
+                            $xmlBaixa,
+                            "<contapagar/>"
+                        );
 
-                        $this->blingBaixaContaAReceber($contaAReceberID, $xmlBaixa);
-
-                    }
-                }
-
-                
-                // Change bling_send_flag
-                if (env('SEND_TO_BLING')) {
-                    Order::where('id', $order['id'])
-                        ->update(['bling_send_flag' => true]);
+                        $this->blingBaixaContaAPagar($contaAPagarID, $xmlBaixa);
+                    } */
                 }
             }
-            
-            
 
+            $contaAReceberAmount = 0;
+
+            $historico = "Ref. ao pedido de venda nº " . $order['invoice'] .
+                        " | Método de pagamento:";
+
+            foreach ($order->payments as $payment) {
+                $historico .= " ".$payment['method'];
+                $contaAReceberAmount += $payment['amount'];
+            }
+
+            $date = new DateTime($order['payment_date']);
+            $dataWithTermExtension = date(
+                'd/m/Y',
+                strtotime("+". $this->termExtensionInDays ." days", strtotime($order['payment_date']))
+            );
+            $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
+
+            $contaAReceber = array(
+                "dataEmissao"  => $date->format('d/m/Y'),
+                "vencimentoOriginal" => $dataWithTermExtension,
+                "competencia"  => $date->format('d/m/Y'),
+                "nroDocumento" => $nroDocumento,
+                "valor"        => $contaAReceberAmount, //obrigatorio
+                "historico"    => $historico,
+                "categoria"    => "3.1.01.01.02 Revenda Mercadoria (Terceiros)",
+                "idFormaPagamento" => "1430675",
+                "portador"   => "1.1.01.02.03 MercadoPago ",
+                "vendedor"   => "Mercado Livre Full",
+                "ocorrencia" => array(//obrigatorio
+                    "ocorrenciaTipo" => "U",//obrigatorio
+                    "diaVencimento"  => "",
+                    "nroParcelas"    => ""
+                ),
+                "cliente" => array(//obrigatorio
+                    "nome"     => $order->buyer['name'],//obrigatorio
+                    "cpf_cnpj" => $order->buyer['identificationNumber'],
+                    "email"    => $order->buyer['email'],
+                ),
+            );
+
+            $parser = new Parser();
+            $xml = $parser->arrayToXml($contaAReceber, "<contareceber/>");
+            //dd($xml);
+            if (env('SEND_TO_BLING')) {
+                $this->blingContaAReceber($xml);
+                // Dar baixar contas a receber
+                if ($response) {
+                    $contaAReceberID = $response['retorno']['contasreceber'][0]['contareceber']['id'];
+
+                    $dataLiquidacao = new DateTime('NOW');
+
+                    $xmlBaixa = array(
+                        "contasreceber" => array(
+                            "dataLiquidacao" => $dataLiquidacao->format('d/m/Y'),
+                            "juros"          => "",
+                            "desconto"       => "",
+                            "acrescimo"      => "",
+                            "tarifa"         => ""
+                        )
+                    );
+
+                    $parser = new Parser();
+                    $xmlBaixa = $parser->arrayToXml($xmlBaixa, "<contasreceber/>");
+
+                    $this->blingBaixaContaAReceber($contaAReceberID, $xmlBaixa);
+
+                }
+            }
+
+
+            // Change bling_send_flag
+            if (env('SEND_TO_BLING')) {
+                Order::where('id', $order['id'])
+                    ->update(['bling_send_flag' => true]);
+            }
+        }
+    }
+
+    public function getOrders(Request $request)
+    {
+        $o = array();
+
+        $offset = 0;
+
+        //$date = date('Y-m-d');//"2022-03-21";
+
+        $stopFlag = false;
+
+        while (!$stopFlag) {
+
+            $orders = $this->getOrdersMercadoLivre($offset);
+            //dd($orders);
+            foreach ($orders as $order) {
+
+                $payments_ids = [];
+
+                foreach ($order['payments'] as $payment) {
+                    array_push($payments_ids, $payment['id']);
+                }
+
+                $i = [
+                    'order_id'     => $order['id'],
+                    'created_in'   => $order['date_created'],
+                    'buyer'        => $order['buyer']['nickname'],
+                    'shipping_id'  => $order['shipping']['id'],
+                    'payments_ids' => $payments_ids,
+                ];
+
+                Log::info("Adding new order - Order ID: " . $order['id']);
+                $o[$i['order_id']] = $i;
+
+            }
+
+            if ($offset < 2) {
+                Log::info("Offset inside limit. Offset: " . $offset);
+            } else {
+                Log::info("Changing flag to true. Offset: " . $offset);
+                $stopFlag = true;
+                break;
+            }
+            Log::info("Offset: " . $offset);
+            $offset++;
+        }
+
+        $orders = $o;
+        //dd($orders);
+        if ($orders) {
+            $this->registerOrdersLocal($orders);
         } else {
-            dd("Não tem pedidos para processar");
+            Log::info("No orders to register locally");
         }
     }
 }

@@ -20,4 +20,4 @@ Route::post('/webhook/mercadolivre', [MercadolivreWebhook::class, 'receive']);
 
 Route::get('/mercadolivre/orders', [MercadoLivre::class, 'getOrders']);
 
-Route::get('/routine', [RoutineController::class, 'routine']);
+Route::get('/routine', [RoutineController::class, 'getOrders']);

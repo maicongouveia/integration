@@ -14,11 +14,12 @@ class CreateFeeTable extends Migration
     public function up()
     {
         Schema::create(
-            'fee', 
+            'fee',
             function (Blueprint $table) {
                 $table->id();
-                $table->unsignedBigInteger('order_id'); 
+                $table->unsignedBigInteger('order_id');
                 $table->foreign('order_id')->references('id')->on('order');
+                $table->unsignedBigInteger('bling_id');
                 $table->string('description');
                 $table->string('amount');
                 $table->timestamps();
