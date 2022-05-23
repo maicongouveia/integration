@@ -19,7 +19,7 @@ class CreateFeeTable extends Migration
                 $table->id();
                 $table->unsignedBigInteger('order_id');
                 $table->foreign('order_id')->references('id')->on('order');
-                $table->unsignedBigInteger('bling_id');
+                $table->unsignedBigInteger('bling_id')->nullable();
                 $table->string('description');
                 $table->string('amount');
                 $table->timestamps();

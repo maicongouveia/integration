@@ -19,10 +19,11 @@ class CreatePaymentTable extends Migration
                 $table->id();
                 $table->unsignedBigInteger('order_id');
                 $table->foreign('order_id')->references('id')->on('order');
-                $table->unsignedBigInteger('payment_id');
-                $table->unsignedBigInteger('bling_id');
-                $table->string('method');
-                $table->string('amount');
+                $table->unsignedBigInteger('payment_id')->nullable();
+                $table->unsignedBigInteger('bling_id')->nullable();
+                $table->string('method')->nullable();
+                $table->string('amount')->nullable();
+                $table->date('payment_date')->nullable();
                 $table->timestamps();
             }
         );

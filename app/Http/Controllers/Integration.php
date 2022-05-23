@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 use Exception;
 use DateTime;
 use App\Classes\Parser;
+use App\Jobs\GetNewOrdersJob;
+use App\Jobs\ProcessJobs;
 use App\Models\Buyer;
 use App\Models\Fee;
 use App\Models\Order;
@@ -12,59 +14,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 
-class RoutineController extends Controller
+class Integration extends Controller
 {
-    public $limit = 50;
     public $termExtensionInDays = 28;
-
-    public function getOrdersMercadoLivre($offset = null)
-    {
-        $request_data = array(
-            'seller' => env('MERCADOLIVRE_SELLER_ID'),
-            'limit'  => $this->limit,
-            'sort'   => 'date_desc',
-            //'order.status' => 'paid',
-        );
-
-        if (env('TEST_MODE')) {
-            Log::info(
-                "[getOrders]: [Test Mode On] ORDER_ID: " . env('ORDER_ID')
-            );
-            $request_data['q'] = env('ORDER_ID');
-        }
-
-
-        if ($offset) {
-            $request_data['offset'] = $offset;
-        }
-
-        try{
-            $url = env("MERCADOLIVRE_API_URL") . "/orders/search";
-
-            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
-                        ->get($url, $request_data);
-
-            if ($response->status() != 200) {
-                Log::warning(
-                    "[getOrders]: Status: " . $response->status() .
-                    " - Body: " . $response->body()
-                );
-                return null;
-            }
-
-            Log::info(
-                "[getOrders]: Status: " . $response->status() .
-                " - Body: " . $response->body()
-            );
-
-            return $response->json()['results'];
-
-        }catch(Exception $e){
-            Log::error("[getOrders]: " . $e->getMessage());
-            dd("[getOrders]: " . $e->getMessage());
-            return null;
-        }
-    }
 
     public function registerOrdersLocal($orders)
     {
@@ -78,17 +30,26 @@ class RoutineController extends Controller
                     [
                         'order_id'         => $order['order_id'],
                         'invoice'          => null,
-                        'payment_date'     => $date->format('Y-m-d H:i:s'),
+                        'created_in'       => $date,
                         'need_update_flag' => 1,
                         'bling_send_flag'  => 0,
                     ]
                 );
 
+
                 $orderCreated = Order::where('order_id', $order['order_id'])->first();
+
+                Buyer::create(
+                    [
+                        'order_id' => $orderCreated['id'],
+                        'name'     => $order['buyer'],
+                    ]
+                );
 
                 $payments_ids = $order['payments_ids'];
 
                 foreach ($payments_ids as $payment_id) {
+                    Log:info('[order_id: '.$orderCreated['id'] . ' - payment_id: '.$payment_id.']');
                     Payment::create(
                         [
                             'order_id'    => $orderCreated['id'],
@@ -198,6 +159,39 @@ class RoutineController extends Controller
         }
     }
 
+    public function registerBuyer($buyer, $order_id)
+    {
+        //Buyer
+
+        if ($buyer['payer']['first_name'] != "Splitter") {
+
+            $payer = $buyer;
+
+            $phone = "";
+
+            if ($payer['phone']['area_code']) {
+                $phone = $phone . $payer['phone']['area_code'];
+            }
+
+            if ($payer['phone']['extension']) {
+                $phone = $phone . $payer['phone']['extension'];
+            }
+
+            if ($payer['phone']['number']) {
+                $phone = $phone . $payer['phone']['number'];
+            }
+
+            $buyer = Buyer::where('order_id', $order_id)->get();
+            $buyer['name']                  = $payer['first_name'] . " "  . $payer['last_name'];
+            $buyer['email']                 = $payer['email'];
+            $buyer['identificationType']    = $payer['identification']['type'];
+            $buyer['identificationNumber']  = $payer['identification']['number'];
+            $buyer['phone']                 = $phone;
+
+            $buyer->save();
+        }
+    }
+
     public function updateOrdersData($quantity = null)
     {
         if ($quantity == null) { $quantity = 1;}
@@ -222,45 +216,6 @@ class RoutineController extends Controller
 
             $paymentDetails = $mercadoLivre->getPaymentDetails($payments);
 
-            //Buyer
-
-            if ($paymentDetails['payer']['first_name'] == "Splitter") {
-                Buyer::create(
-                    [
-                        'order_id' => $order['id'],
-                        'name' => $orders[$order['order_id']]['buyer'],
-                    ]
-                );
-                unset($paymentDetails['payer']);
-            } else {
-                $payer = $paymentDetails['payer'];
-
-                $phone = "";
-
-                if ($payer['phone']['area_code']) {
-                    $phone = $phone . $payer['phone']['area_code'];
-                }
-
-                if ($payer['phone']['extension']) {
-                    $phone = $phone . $payer['phone']['extension'];
-                }
-
-                if ($payer['phone']['number']) {
-                    $phone = $phone . $payer['phone']['number'];
-                }
-
-                Buyer::create(
-                    [
-                        'order_id' => $order['id'],
-                        'name' => $payer['first_name'] . " "  . $payer['last_name'],
-                        'email' => $payer['email'],
-                        'identificationType' => $payer['identification']['type'],
-                        'identificationNumber' => $payer['identification']['number'],
-                        'phone' => $phone,
-                    ]
-                );
-            }
-
             // Payments
 
             $payments = $paymentDetails['payment_info'];
@@ -268,9 +223,9 @@ class RoutineController extends Controller
             foreach ($payments as $payment) {
                 Payment::create(
                     [
-                        'order_id'    => $order['id'],
-                        'method'      => $payment['method'],
-                        'amount'      => $payment['amount'],
+                        'order_id' => $order['id'],
+                        'method'   => $payment['method'],
+                        'amount'   => $payment['amount'],
                     ]
                 );
             }
@@ -278,7 +233,7 @@ class RoutineController extends Controller
             // Fee
 
             $fees   = $paymentDetails['sales_fee'];
-            $fees[] = $mercadoLivre->getShippingCost($orders[$order['order_id']]['shipping_id']);
+            $fees[] = $mercadoLivre->getShippingCost($order['id']);
 
             foreach ($fees as $fee) {
                 if ($fee['amount'] != 0) {
@@ -312,7 +267,7 @@ class RoutineController extends Controller
             //dd($order);
             foreach ($order->fees as $fee) {
                 //dd($order);
-                $date = new DateTime($order['payment_date']);
+                $date = new DateTime($fee['payment_date']);
                 $dataWithTermExtension = date('d/m/Y', strtotime("+". $this->termExtensionInDays ." days",strtotime($order['payment_date'])));
 
                 $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
@@ -470,58 +425,8 @@ class RoutineController extends Controller
         }
     }
 
-    public function getOrders(Request $request)
+    public function getOrders()
     {
-        $o = array();
-
-        $offset = 0;
-
-        //$date = date('Y-m-d');//"2022-03-21";
-
-        $stopFlag = false;
-
-        while (!$stopFlag) {
-
-            $orders = $this->getOrdersMercadoLivre($offset);
-            //dd($orders);
-            foreach ($orders as $order) {
-
-                $payments_ids = [];
-
-                foreach ($order['payments'] as $payment) {
-                    array_push($payments_ids, $payment['id']);
-                }
-
-                $i = [
-                    'order_id'     => $order['id'],
-                    'created_in'   => $order['date_created'],
-                    'buyer'        => $order['buyer']['nickname'],
-                    'shipping_id'  => $order['shipping']['id'],
-                    'payments_ids' => $payments_ids,
-                ];
-
-                Log::info("Adding new order - Order ID: " . $order['id']);
-                $o[$i['order_id']] = $i;
-
-            }
-
-            if ($offset < 2) {
-                Log::info("Offset inside limit. Offset: " . $offset);
-            } else {
-                Log::info("Changing flag to true. Offset: " . $offset);
-                $stopFlag = true;
-                break;
-            }
-            Log::info("Offset: " . $offset);
-            $offset++;
-        }
-
-        $orders = $o;
-        //dd($orders);
-        if ($orders) {
-            $this->registerOrdersLocal($orders);
-        } else {
-            Log::info("No orders to register locally");
-        }
+        GetNewOrdersJob::dispatch();
     }
 }

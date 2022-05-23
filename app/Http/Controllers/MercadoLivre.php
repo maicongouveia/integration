@@ -30,40 +30,49 @@ class Mercadolivre extends Controller
         }
     }
 
-    public function getOrders(Request $request)
+    public function getOrders()
     {
         $request_data = array(
             'seller' => env('MERCADOLIVRE_SELLER_ID'),
-            'limit'  => 1,
+            'limit'  => 50,
             'sort'   => 'date_desc',
-            //'order.status' => 'paid',
-            //'q'      => 5265607923//5332358230//5332358229 //order_id
+            'order.status' => 'paid',
         );
 
-        if ($request->order_id) {
-            $request_data['q'] = $request->order_id;
+        if (env('TEST_MODE')) {
+            Log::info(
+                "[getOrders]: [Test Mode On] ORDER_ID: " . env('ORDER_ID')
+            );
+            $request_data['q'] = env('ORDER_ID');
         }
 
-        if ($request->offset) {
-            $request_data['offset'] = $request->offset;
+        /*
+        if ($offset) {
+            $request_data['offset'] = $offset;
         }
+        */
 
         try{
             $url = env("MERCADOLIVRE_API_URL") . "/orders/search";
 
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
-                ->get($url, $request_data);
+                        ->get($url, $request_data);
 
             if ($response->status() != 200) {
-                Log::warning("[getOrders]: Status: " . $response->status() . " - Body: " . $response->body());
+                Log::warning(
+                    "[getOrders]: Status: " . $response->status() .
+                    " - Body: " . $response->body()
+                );
                 return null;
             }
+
             Log::info(
                 "[getOrders]: Status: " . $response->status() .
                 " - Body: " . $response->body()
             );
-            return Response($this->responseOrdersHandler($response->json()), 200);
-            //return Response($response->json(), 200);
+
+            return $response->json()['results'];
+
         }catch(Exception $e){
             Log::error("[getOrders]: " . $e->getMessage());
             dd("[getOrders]: " . $e->getMessage());
@@ -71,7 +80,7 @@ class Mercadolivre extends Controller
         }
     }
 
-    public function getShippingCost($shippingId)
+    /* public function getShippingCostById($shippingId)
     {
         try{
 
@@ -81,6 +90,32 @@ class Mercadolivre extends Controller
             if ($response->status() != 200) {
                 Log::warning(
                     "[getShippingCost]: Shipping ID: $shippingId" .
+                    " - Status: " . $response->status() .
+                    " - Body: " . $response
+                );
+                return null;
+            }
+            return array(
+                'description' => 'Envio pelo Mercado Envios',
+                'amount'      => $response['shipping_option']['list_cost'],
+            );
+        } catch (Exception $e) {
+            Log::error("[getShippingCost]: " . $e->getMessage());
+            dd("[getShippingCost]: " . $e->getMessage());
+            return null;
+        }
+    } */
+
+    public function getShippingCost($orderId)
+    {
+        try{
+
+            $url = env("MERCADOLIVRE_API_URL") . "/orders/" . $orderId . "/shipments";
+            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get($url);
+
+            if ($response->status() != 200) {
+                Log::warning(
+                    "[getShippingCost]: Shipping ID: " . $response['id'] .
                     " - Status: " . $response->status() .
                     " - Body: " . $response
                 );
@@ -221,7 +256,7 @@ class Mercadolivre extends Controller
         }
     }
 
-    public function responseOrdersHandler($responseOrders)
+    public function old_responseOrdersHandler($responseOrders)
     {
         $orders = array();
 
@@ -260,6 +295,34 @@ class Mercadolivre extends Controller
             );
             $orders[] = $input;
         }
+        return $orders;
+    }
+
+    public function responseOrdersHandler($responseOrders)
+    {
+        $orders = array();
+
+        foreach ($responseOrders as $order) {
+
+            $payments_ids = [];
+
+            foreach ($order['payments'] as $payment) {
+                array_push($payments_ids, $payment['id']);
+            }
+
+            $i = [
+                'order_id'     => $order['id'],
+                'created_in'   => $order['date_created'],
+                'buyer'        => $order['buyer']['nickname'],
+                'shipping_id'  => $order['shipping']['id'],
+                'payments_ids' => $payments_ids,
+            ];
+
+            //Log::info("Adding new order - Order ID: " . $order['id']);
+            $orders[$i['order_id']] = $i;
+
+        }
+
         return $orders;
     }
 }

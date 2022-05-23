@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Payment extends Model
 {
     use HasFactory;
-        
+
     /**
      * The table associated with the model.
      *
@@ -22,8 +22,11 @@ class Payment extends Model
      * @var array
      */
     protected $fillable = [
-        'order_id', 
-        'method', 
+        'order_id',
+        'payment_id',
+        'bling_id',
+        'method',
         'amount',
+        'payment_date',
     ];
 }
