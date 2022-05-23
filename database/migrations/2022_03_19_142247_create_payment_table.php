@@ -23,7 +23,7 @@ class CreatePaymentTable extends Migration
                 $table->unsignedBigInteger('bling_id')->nullable();
                 $table->string('method')->nullable();
                 $table->string('amount')->nullable();
-                $table->date('payment_date')->nullable();
+                $table->datetime('payment_date')->nullable();
                 $table->timestamps();
             }
         );

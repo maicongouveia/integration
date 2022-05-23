@@ -115,9 +115,9 @@ class Mercadolivre extends Controller
 
             if ($response->status() != 200) {
                 Log::warning(
-                    "[getShippingCost]: Shipping ID: " . $response['id'] .
+                    "[getShippingCost]: Shipping ID: " . $response->json()['id'] .
                     " - Status: " . $response->status() .
-                    " - Body: " . $response
+                    " - Body: " . $response->json()
                 );
                 return null;
             }
@@ -127,12 +127,70 @@ class Mercadolivre extends Controller
             );
         } catch (Exception $e) {
             Log::error("[getShippingCost]: " . $e->getMessage());
-            dd("[getShippingCost]: " . $e->getMessage());
             return null;
         }
     }
 
-    public function getPaymentDetails($payments)
+    public function getPaymentDetails($payment)
+    {
+        $paymentResponse = array();
+        $paymentResponse['sales_fee'] = array();
+        $paymentResponse['payment_info'] = array();
+
+        try{
+            $url = env("MERCADOPAGO_API_URL") . "/v1/payments/" . $payment['payment_id'];
+            Log::info($url);
+            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
+                        ->get($url);
+
+            if ($response->status() != 200) {
+                $log =  "[getPaymentDetails]:PaymentId: " . $payment['payment_id'] .
+                        " Status: " . $response->status() .
+                        " - Body: " . $response->body();
+                Log::warning($log);
+                return null;
+            }
+
+
+            $response = array(
+                'sales_fee'     => $this->responseFeeHandler($response->json()),
+                'payer'         => $response->json()['payer'],
+                'payment_info'  =>  array(
+                    array(
+                        'method' => $response['payment_method_id'],
+                        'amount' => $response['transaction_amount'],
+                    ),
+                ),
+            );
+
+        }catch(Exception $e){
+            $log = "[getPaymentDetails]: " . $e->getMessage() .
+                    "- [Data]: " . $response;
+            Log::error($log);
+            return null;
+        }
+
+        $sales_fee = array_merge(
+            $paymentResponse['sales_fee'],
+            $response['sales_fee']
+        );
+
+        $paymentResponse['sales_fee'] = $sales_fee;
+
+        $payment_info = array_merge(
+            $paymentResponse['payment_info'],
+            $response['payment_info']
+        );
+
+        $paymentResponse['payment_info'] = $payment_info;
+
+        $paymentResponse['payer'] = $response['payer'];
+
+        return $paymentResponse;
+
+    }
+
+    public function getPaymentsDetails($payments)
     {
         $paymentResponse = array();
         $paymentResponse['sales_fee'] = array();
@@ -141,6 +199,7 @@ class Mercadolivre extends Controller
         foreach ($payments as $payment) {
             try{
                 $url = env("MERCADOPAGO_API_URL") . "/v1/payments/" . $payment['payment_id'];
+                Log::info($url);
                 $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
                             ->get($url);
 
@@ -152,13 +211,16 @@ class Mercadolivre extends Controller
                     return null;
                 }
 
+                Log::info($response->body());
+
                 $response = array(
-                    'sales_fee' => $this->responseFeeHandler($response->json()),
-                    'payer'     => $response->json()['payer'],
+                    'sales_fee'     => $this->responseFeeHandler($response->json()),
+                    'payer'         => $response->json()['payer'],
                     'payment_info'  =>  array(
                         array(
-                            'method' => $response['payment_method_id'],
-                            'amount' => $response['transaction_amount'],
+                            'method'        => $response['payment_method_id'],
+                            'amount'        => $response['transaction_amount'],
+                            'date_approved' => $response['date_approved']
                         ),
                     ),
                 );
@@ -167,7 +229,6 @@ class Mercadolivre extends Controller
                 $log = "[getPaymentDetails]: " . $e->getMessage() .
                        "- [Data]: " . $response;
                 Log::error($log);
-                dd($log);
                 return null;
             }
 

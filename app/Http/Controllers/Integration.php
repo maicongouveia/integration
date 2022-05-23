@@ -214,26 +214,27 @@ class Integration extends Controller
 
             $payments = Payment::where('order_id', $order['id'])->get();
 
-            $paymentDetails = $mercadoLivre->getPaymentDetails($payments);
+            $paymentDetails = $mercadoLivre->getPaymentsDetails($payments);
+            Log::info($paymentDetails);
 
             // Payments
-
             $payments = $paymentDetails['payment_info'];
 
             foreach ($payments as $payment) {
-                Payment::create(
+                $date = new DateTime($payment['date_approved']);
+                Payment::where('order_id',$order['id'])
+                    ->update(
                     [
-                        'order_id' => $order['id'],
-                        'method'   => $payment['method'],
-                        'amount'   => $payment['amount'],
-                    ]
-                );
+                        'method'       => $payment['method'],
+                        'amount'       => $payment['amount'],
+                        'payment_date' => $date->format('Y-m-d H:i:s')
+                    ]);
             }
 
             // Fee
 
             $fees   = $paymentDetails['sales_fee'];
-            $fees[] = $mercadoLivre->getShippingCost($order['id']);
+            $fees[] = $mercadoLivre->getShippingCost($order['order_id']);
 
             foreach ($fees as $fee) {
                 if ($fee['amount'] != 0) {

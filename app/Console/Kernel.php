@@ -19,7 +19,13 @@ class Kernel extends ConsoleKernel
         $schedule->call(function () {
             $integration = new Integration();
             $integration->getOrders();
+        })->everyTenMinutes();
+
+        $schedule->call(function () {
+            $integration = new Integration();
+            $integration->updateOrdersData(5);
         })->everyMinute();
+
     }
 
     /**
@@ -33,6 +39,5 @@ class Kernel extends ConsoleKernel
 
         require base_path('routes/console.php');
 
-        
     }
 }
