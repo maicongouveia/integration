@@ -72,14 +72,18 @@ class Integration extends Controller
         try{
             $response = Http::asForm()->post('https://bling.com.br/b/Api/v2/contapagar/json/', $request_data);
 
-            if ($response->status() != 200) {
-                Log::warning(
+            if ($response->status() != 201) {
+                Log::info(
                     "[blingContaAPagar]: Status: " . $response->status() .
                     " - Body: " . $response->body()
                 );
                 return null;
             }
-            Log::info("Conta a pagar enviada para Bling: " . $xml);
+            Log::info("[blingContaAPagar]: Conta a pagar enviada para Bling: " . $xml);
+            Log::info(
+                "[blingContaAPagar]: Status: " . $response->status() .
+                " - Body: " . $response->body()
+            );
             return $response->json();
         }catch(Exception $e){
             Log::error("[blingContaAPagar]: " . $e->getMessage());
@@ -97,11 +101,12 @@ class Integration extends Controller
         try{
             $response = Http::asForm()->post('https://bling.com.br/b/Api/v2/contareceber/json/', $request_data);
 
-            if ($response->status() != 200) {
-                Log::warning("[blingContaAReceber]: Status: " . $response->status() . " - Body: " . $response->body());
+            if ($response->status() != 201) {
+                Log::info("[blingContaAReceber]: Status: " . $response->status() . " - Body: " . $response->body());
                 return null;
             }
-            Log::info("Conta a receber enviada para Bling: " . $xml);
+            Log::info("[blingContaAReceber]: Conta a receber enviada para Bling: " . $xml);
+            Log::info("[blingContaAReceber]: Status: " . $response->status() . " - Body: " . $response->body());
             return $response->json();
         }catch(Exception $e){
             Log::error("[blingContaAReceber]: " . $e->getMessage());
@@ -257,19 +262,20 @@ class Integration extends Controller
 
     public function registerOrdersBling($quantity = null)
     {
+        if ($quantity == null) { $quantity = 1;}
+
         // Enviar para o Bling
         $orders_not_send = Order::where('bling_send_flag', false)
             ->where('need_update_flag', false)
-            ->take(2)->get();
+            ->take($quantity)->get();
 
         foreach ($orders_not_send as $order) {
             // Contas a pagar
-            $contasAPagar = array();
             //dd($order);
             foreach ($order->fees as $fee) {
                 //dd($order);
-                $date = new DateTime($fee['payment_date']);
-                $dataWithTermExtension = date('d/m/Y', strtotime("+". $this->termExtensionInDays ." days",strtotime($order['payment_date'])));
+                $date = new DateTime($order['created_in']);
+                $dataWithTermExtension = date('d/m/Y', strtotime("+". $this->termExtensionInDays ." days",strtotime($order['created_in'])));
 
                 $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
 
@@ -322,9 +328,12 @@ class Integration extends Controller
                 if (env('SEND_TO_BLING')) {
                     $response = $this->blingContaAPagar($xml);
                     // Dar baixar contas a pagar
-                    /* if ($response) {
-                        $contaAPagarID = $response['retorno']['contapagar'][0]['contapagar']['id'];
+                    if ($response) {
+                        $contaAPagarID = $response['retorno']['contaspagar'][0]['contapagar']['id'];
 
+                        Fee::where('order_id', $order['id'])->update(['bling_id' => $contaAPagarID]);
+
+                     /*
                         $dataLiquidacao = new DateTime('NOW');
 
                         $xmlBaixa = array(
@@ -343,8 +352,8 @@ class Integration extends Controller
                             "<contapagar/>"
                         );
 
-                        $this->blingBaixaContaAPagar($contaAPagarID, $xmlBaixa);
-                    } */
+                        $this->blingBaixaContaAPagar($contaAPagarID, $xmlBaixa);*/
+                    }
                 }
             }
 
@@ -358,10 +367,10 @@ class Integration extends Controller
                 $contaAReceberAmount += $payment['amount'];
             }
 
-            $date = new DateTime($order['payment_date']);
+            $date = new DateTime($order['created_in']);
             $dataWithTermExtension = date(
                 'd/m/Y',
-                strtotime("+". $this->termExtensionInDays ." days", strtotime($order['payment_date']))
+                strtotime("+". $this->termExtensionInDays ." days", strtotime($order['created_in']))
             );
             $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
 
@@ -392,12 +401,16 @@ class Integration extends Controller
             $xml = $parser->arrayToXml($contaAReceber, "<contareceber/>");
             //dd($xml);
             if (env('SEND_TO_BLING')) {
-                $this->blingContaAReceber($xml);
+                $response = $this->blingContaAReceber($xml);
                 // Dar baixar contas a receber
                 if ($response) {
-                    $contaAReceberID = $response['retorno']['contasreceber'][0]['contareceber']['id'];
+                    $contaAReceberID = $response['retorno']['contasreceber'][0]['contaReceber']['id'];
 
-                    $dataLiquidacao = new DateTime('NOW');
+                    Payment::where('order_id', $order['id'])->update(['bling_id' => $contaAReceberID]);
+
+
+
+                   /*  $dataLiquidacao = new DateTime('NOW');
 
                     $xmlBaixa = array(
                         "contasreceber" => array(
@@ -412,7 +425,7 @@ class Integration extends Controller
                     $parser = new Parser();
                     $xmlBaixa = $parser->arrayToXml($xmlBaixa, "<contasreceber/>");
 
-                    $this->blingBaixaContaAReceber($contaAReceberID, $xmlBaixa);
+                    $this->blingBaixaContaAReceber($contaAReceberID, $xmlBaixa); */
 
                 }
             }

@@ -26,6 +26,11 @@ class Kernel extends ConsoleKernel
             $integration->updateOrdersData(5);
         })->everyMinute();
 
+        $schedule->call(function () {
+            $integration = new Integration();
+            $integration->registerOrdersBling(5);
+        })->everyMinute();
+
     }
 
     /**
