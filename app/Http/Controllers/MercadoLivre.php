@@ -317,6 +317,58 @@ class Mercadolivre extends Controller
         }
     }
 
+    public function getOrdersForFront()
+    {
+        $request_data = array(
+            'seller' => env('MERCADOLIVRE_SELLER_ID'),
+            'limit'  => 50,
+            'sort'   => 'date_desc',
+            'order.status' => 'paid',
+        );
+
+        if (env('TEST_MODE')) {
+            Log::info(
+                "[getOrders]: [Test Mode On] ORDER_ID: " . env('ORDER_ID')
+            );
+            $request_data['q'] = env('ORDER_ID');
+        }
+
+        /*
+        if ($offset) {
+            $request_data['offset'] = $offset;
+        }
+        */
+
+        try{
+            $url = env("MERCADOLIVRE_API_URL") . "/orders/search";
+
+            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
+                        ->get($url, $request_data);
+
+            //dd($response->body());
+
+            if ($response->status() != 200) {
+                Log::info(
+                    "[getOrdersForFront]: Status: " . $response->status() .
+                    " - Body: " . $response->body()
+                );
+                return null;
+            }
+
+            Log::info(
+                "[getOrdersForFront]: Status: " . $response->status() .
+                " - Body: " . $response->body()
+            );
+
+            return Response($this->old_responseOrdersHandler($response->json()), 200);
+
+        }catch(Exception $e){
+            Log::error("[getOrdersForFront]: " . $e->getMessage());
+            dd("[getOrdersForFront]: " . $e->getMessage());
+            return null;
+        }
+    }
+
     public function old_responseOrdersHandler($responseOrders)
     {
         $orders = array();
