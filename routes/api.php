@@ -18,6 +18,6 @@ use App\Http\Controllers\RoutineController;
 
 Route::post('/webhook/mercadolivre', [MercadolivreWebhook::class, 'receive']);
 
-Route::get('/mercadolivre/orders', [MercadoLivre::class, 'getOrders']);
+Route::get('/orders', [MercadoLivre::class, 'getOrdersForFront']);
 
 Route::get('/routine', [RoutineController::class, 'getOrders']);
