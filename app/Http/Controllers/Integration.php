@@ -264,8 +264,9 @@ class Integration extends Controller
     public function categoryHandler($description)
     {
         $categoriaDict = array(
-            'Gestão de Vendas' => "4.1.01.06.12 Gestão de Vendas",
-            'Tarifa de Venda'  => "4.1.01.06.13 Tarifa de Venda",
+            'Gestão de Vendas'          => "4.1.01.06.12 Gestão de Vendas",
+            'Tarifa de Venda'           => "4.1.01.06.13 Tarifa de Venda",
+            'Envio pelo Mercado Envios' => "4.1.01.07.06 Custo de envio por Fulfillment",
         );
 
         if(! array_key_exists($description, $categoriaDict)) {
