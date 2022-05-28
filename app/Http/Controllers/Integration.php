@@ -168,7 +168,7 @@ class Integration extends Controller
     {
         //Buyer
 
-        if ($buyer['payer']['first_name'] != "Splitter") {
+        if ($buyer['first_name'] != "Splitter") {
 
             $payer = $buyer;
 
@@ -186,14 +186,13 @@ class Integration extends Controller
                 $phone = $phone . $payer['phone']['number'];
             }
 
-            $buyer = Buyer::where('order_id', $order_id)->get();
-            $buyer['name']                  = $payer['first_name'] . " "  . $payer['last_name'];
-            $buyer['email']                 = $payer['email'];
-            $buyer['identificationType']    = $payer['identification']['type'];
-            $buyer['identificationNumber']  = $payer['identification']['number'];
-            $buyer['phone']                 = $phone;
-
-            $buyer->save();
+            Buyer::where('order_id', $order_id)->update([
+                'name'                  => $payer['first_name'] . " "  . $payer['last_name'],
+                'email'                 => $payer['email'],
+                'identificationType'    => $payer['identification']['type'],
+                'identificationNumber'  => $payer['identification']['number'],
+                'phone'                 => $phone,
+            ]);
         }
     }
 
@@ -253,6 +252,8 @@ class Integration extends Controller
                 }
             }
 
+            $this->registerBuyer($paymentDetails['payer'], $order['id']);
+
             // Change need_update_flag
             Order::where('id', $order['id'])
                 ->update(['need_update_flag' => 0]);
@@ -293,7 +294,7 @@ class Integration extends Controller
                         "competencia"        => $date->format('d/m/Y'),
                         "nroDocumento"       => $nroDocumento,
                         "valor"              => $fee['amount'], //obrigatorio
-                        "histórico"          => $historico,
+                        "historico"          => $historico,
                         "categoria"          => "4.1.01.06.11 Correios e malotes",
                         "portador"           => "1.1.01.02.03 MercadoPago ",
                         "idFormaPagamento"   => 1430675,
