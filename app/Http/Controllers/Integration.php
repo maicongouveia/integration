@@ -261,6 +261,31 @@ class Integration extends Controller
         }
     }
 
+    public function categoryHandler($description)
+    {
+        $categoriaDict = array(
+            'Gestão de Vendas' => "4.1.01.06.12 Gestão de Vendas",
+            'Tarifa de Venda'  => "4.1.01.06.13 Tarifa de Venda",
+        );
+
+        if(! array_key_exists($description, $categoriaDict)) {
+            return $description;
+        }
+
+        return $categoriaDict[$description];
+
+    }
+
+    public function sumDeliveryTax($fees, $amount)
+    {
+        foreach($fees as $fee){
+            if ($fee['description'] == "Envio pelo Mercado Envios") {
+                $amount += $fee['amount'];
+            }
+        }
+        return $amount;
+    }
+
     public function registerOrdersBling($quantity = null)
     {
         if ($quantity == null) { $quantity = 1;}
@@ -288,6 +313,8 @@ class Integration extends Controller
                     $historico = $historico . " | Nota Fiscal: Não foi emitida";
                 }
 
+                $categoria = $this->categoryHandler($fee['description']);
+
                 $conta = array(
                         "dataEmissão"        => $date->format('d/m/Y'),
                         "vencimentoOriginal" => $dataWithTermExtension,
@@ -295,7 +322,7 @@ class Integration extends Controller
                         "nroDocumento"       => $nroDocumento,
                         "valor"              => $fee['amount'], //obrigatorio
                         "historico"          => $historico,
-                        "categoria"          => "4.1.01.06.11 Correios e malotes",
+                        "categoria"          => $categoria,
                         "portador"           => "1.1.01.02.03 MercadoPago ",
                         "idFormaPagamento"   => 1430675,
                         "ocorrencia"         => array(//obrigatorio
@@ -367,6 +394,8 @@ class Integration extends Controller
                 $historico .= " ".$payment['method'];
                 $contaAReceberAmount += $payment['amount'];
             }
+
+            $contaAReceberAmount = $this->sumDeliveryTax($order->fees, $contaAReceberAmount);
 
             $date = new DateTime($order['created_in']);
             $dataWithTermExtension = date(
