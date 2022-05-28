@@ -1,11 +1,11 @@
-var url = "/api/mercadolivre/orders";
+var url = "/api/orders";
 const limit = 300;
 
 /* var searchingFlag = false;
 const searchButton = document.getElementById('searchButton');
 const searchInput = document.getElementById('searchInput');
 searchButton.addEventListener(
-	'click', 
+	'click',
 	function (event) {
 		event.preventDefault();
 		searchForOrders(0, searchInput.value)
@@ -33,6 +33,7 @@ function searchForOrders(offset, search = null){
 		.then((response) => response.json())
 		.then(
 			function (response){
+                console.log(response);
 				addContent(response);
 				if (offset < limit) {
 					searchForOrders(++offset, search);
@@ -44,6 +45,7 @@ function searchForOrders(offset, search = null){
 		)
 		.catch(function (error){
 			console.log(error);
+            console.log(response);
 			stopLoader();
 		});
 }
@@ -95,7 +97,7 @@ function row(order){
 				innerTable += "</tr>";
 			}
 
-			if (buyer['phone']['number']) {
+			if (buyer['phone'] && buyer['phone']['number']) {
 				let phone = "";
 
 				if(buyer['phone']['area_code']) { phone = phone + buyer['phone']['area_code'];}
@@ -108,7 +110,7 @@ function row(order){
 				innerTable += "</tr>";
 			}
 
-			if (buyer['identification']['type']) {
+			if (buyer['identification'] && buyer['identification']['type']) {
 				innerTable += "<tr>";
 				innerTable += "<td>" + buyer['identification']['type'] + "</td>";
 				innerTable += "<td>" + buyer['identification']['number'] + "</td>";
@@ -117,13 +119,15 @@ function row(order){
 
 			innerTable += "</table>";
 			cellElement.innerHTML = innerTable;
-		}				
+		}
 		/* else if (index == "reason") {
 			cellElement.innerHTML = order[index];
 			cellElement.classList.add('overflow-auto');
 		} */
 		else if(index == "payment_info") {
 			let innerTable = "<table class='table table-striped'>";
+            console.log(order)
+            //console.log(order[index])
 			order[index].forEach(payment => {
 				innerTable += "<tr>";
 				innerTable += "<td>" + payment['method'] + "</td>";
@@ -160,14 +164,14 @@ function row(order){
 			innerTable += "<td>" + amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + "</td>";
 			innerTable += "</tr>";
 			innerTable += "</tfoot>"
-			
+
 
 			innerTable += "</table>";
 			cellElement.innerHTML = innerTable;
 		}
 		else if (index == "total_fee_amount") {
-			
-		}			
+
+		}
 		else if (index == "payment_date") {
 			date = new Date(order[index]);
 			cellElement.innerHTML = date.toLocaleString('pt-BR');
@@ -176,12 +180,12 @@ function row(order){
 		else {
 			cellElement.innerHTML = order[index];
 		}
-		
+
 		rowElement.appendChild(cellElement);
 	});
 
 	return rowElement;
-	
-	
+
+
 }
 
