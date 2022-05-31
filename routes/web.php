@@ -21,3 +21,4 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::get('/', [MercadoLivreOrderController::class, "orders"]);
+Route::get('/cancel', [MercadoLivreOrderController::class, "orders"]);

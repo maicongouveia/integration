@@ -196,7 +196,7 @@ class Integration extends Controller
         }
     }
 
-    public function updateOrdersData($quantity = null)
+    public function enrichOrders($quantity = null)
     {
         if ($quantity == null) { $quantity = 1;}
 
@@ -468,6 +468,14 @@ class Integration extends Controller
                     ->update(['bling_send_flag' => true]);
             }
         }
+    }
+
+    public function getOrdersFromLast30Days()
+    {
+        $dateLast30Days = date('Y-m-d h:m:s', strtotime("-30 days", null));
+        $orders = Order::where('created_in', '>=', $dateLast30Days)->get();
+
+        return $orders;
     }
 
     public function getOrders()

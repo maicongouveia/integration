@@ -23,7 +23,7 @@ class Kernel extends ConsoleKernel
 
         $schedule->call(function () {
             $integration = new Integration();
-            $integration->updateOrdersData(5);
+            $integration->enrichOrders(5);
         })->everyMinute();
 
         $schedule->call(function () {

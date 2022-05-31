@@ -114,10 +114,10 @@ class Mercadolivre extends Controller
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get($url);
 
             if ($response->status() != 200) {
-                Log::warning(
-                    "[getShippingCost]: Shipping ID: " . $response->json()['id'] .
+                Log::info(
+                    "[getShippingCost]: Order ID: " . $orderId .
                     " - Status: " . $response->status() .
-                    " - Body: " . $response->json()
+                    " - Body: " . json_encode($response->json())
                 );
                 return null;
             }
@@ -139,7 +139,7 @@ class Mercadolivre extends Controller
 
         try{
             $url = env("MERCADOPAGO_API_URL") . "/v1/payments/" . $payment['payment_id'];
-            Log::info($url);
+
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
                         ->get($url);
 
@@ -150,7 +150,6 @@ class Mercadolivre extends Controller
                 Log::warning($log);
                 return null;
             }
-
 
             $response = array(
                 'sales_fee'     => $this->responseFeeHandler($response->json()),
@@ -164,8 +163,7 @@ class Mercadolivre extends Controller
             );
 
         }catch(Exception $e){
-            $log = "[getPaymentDetails]: " . $e->getMessage() .
-                    "- [Data]: " . $response;
+            $log = "[getPaymentDetails]: " . $e->getMessage();
             Log::error($log);
             return null;
         }
@@ -185,6 +183,69 @@ class Mercadolivre extends Controller
         $paymentResponse['payment_info'] = $payment_info;
 
         $paymentResponse['payer'] = $response['payer'];
+
+        return $paymentResponse;
+
+    }
+
+    public function getPaymentsDetailsFroFront($payments)
+    {
+        $paymentResponse = array();
+        $paymentResponse['sales_fee'] = array();
+        $paymentResponse['payment_info'] = array();
+
+        foreach ($payments as $payment) {
+            try{
+                $url = env("MERCADOPAGO_API_URL") . "/v1/payments/" . $payment['id'];
+                //Log::info($url);
+                $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
+                            ->get($url);
+
+                if ($response->status() != 200) {
+                    $log =  "[getPaymentDetails]:PaymentId: " . $payment['id'] .
+                            " Status: " . $response->status() .
+                            " - Body: " . json_encode($response->body());
+                    Log::warning($log);
+                    return null;
+                }
+
+                //Log::info($response->body());
+
+                $response = array(
+                    'sales_fee'     => $this->responseFeeHandler($response->json()),
+                    'payer'         => $response->json()['payer'],
+                    'payment_info'  =>  array(
+                        array(
+                            'method'        => $response['payment_method_id'],
+                            'amount'        => $response['transaction_amount'],
+                            'date_approved' => $response['date_approved']
+                        ),
+                    ),
+                );
+
+            }catch(Exception $e){
+                $log = "[getPaymentDetails]: " . $e->getMessage();
+                Log::error($log);
+                return null;
+            }
+
+            $sales_fee = array_merge(
+                $paymentResponse['sales_fee'],
+                $response['sales_fee']
+            );
+
+            $paymentResponse['sales_fee'] = $sales_fee;
+
+            $payment_info = array_merge(
+                $paymentResponse['payment_info'],
+                $response['payment_info']
+            );
+
+            $paymentResponse['payment_info'] = $payment_info;
+
+            $paymentResponse['payer'] = $response['payer'];
+
+        }
 
         return $paymentResponse;
 
@@ -226,8 +287,7 @@ class Mercadolivre extends Controller
                 );
 
             }catch(Exception $e){
-                $log = "[getPaymentDetails]: " . $e->getMessage() .
-                       "- [Data]: " . $response;
+                $log = "[getPaymentDetails]: " . $e->getMessage();
                 Log::error($log);
                 return null;
             }
@@ -306,7 +366,11 @@ class Mercadolivre extends Controller
         try{
             $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get(env("MERCADOLIVRE_API_URL") . "/users/" . env('MERCADOLIVRE_SELLER_ID') . "/invoices/orders/" . $orderId);
             if($response->status() != 200) {
-                Log::warning("[getInvoice]: Order ID: $orderId - Status: " . $response->status() . " - Body: " . $response->body());
+                if($response->status() == 404) {
+                    Log::info("[getInvoice]: Order ID: $orderId - Status: " . $response->status() . " - Body: " . $response->body());
+                } else {
+                    Log::error("[getInvoice]: Order ID: $orderId - Status: " . $response->status() . " - Body: " . $response->body());
+                }
                 return null;
             }
             return $response->json()['invoice_number'];
@@ -317,11 +381,11 @@ class Mercadolivre extends Controller
         }
     }
 
-    public function getOrdersForFront()
+    public function getOrdersForFront(Request $request)
     {
         $request_data = array(
             'seller' => env('MERCADOLIVRE_SELLER_ID'),
-            'limit'  => 50,
+            'limit'  => 1,
             'sort'   => 'date_desc',
             'order.status' => 'paid',
         );
@@ -333,11 +397,15 @@ class Mercadolivre extends Controller
             $request_data['q'] = env('ORDER_ID');
         }
 
-        /*
-        if ($offset) {
-            $request_data['offset'] = $offset;
+
+        if ($request->offset) {
+            $request_data['offset'] = $request->offset;
         }
-        */
+
+        if ($request->status) {
+            $request_data['order.status'] = "cancelled";
+        }
+
 
         try{
             $url = env("MERCADOLIVRE_API_URL") . "/orders/search";
@@ -355,10 +423,10 @@ class Mercadolivre extends Controller
                 return null;
             }
 
-            Log::info(
+            /* Log::info(
                 "[getOrdersForFront]: Status: " . $response->status() .
                 " - Body: " . $response->body()
-            );
+            ); */
 
             return Response($this->old_responseOrdersHandler($response->json()), 200);
 
@@ -385,7 +453,7 @@ class Mercadolivre extends Controller
                 'buyer'        => $this->responseBuyerHandler($order['buyer']),
             ];
 
-            $paymentDetails = $this->getPaymentDetails($payments);
+            $paymentDetails = $this->getPaymentsDetailsFroFront($payments);
 
             if ($paymentDetails['payer']['first_name'] == "Splitter") {
                 unset($paymentDetails['payer']);
@@ -400,12 +468,13 @@ class Mercadolivre extends Controller
 
             $input = array_merge($input, $paymentDetails);
 
-            $input['sales_fee'][] = $this->getShippingCost($order['shipping']['id']);
-            Log::info(
+            $responseShippingCost = $this->getShippingCost($order['id']);
+            if ($responseShippingCost) { $input['sales_fee'][] = $responseShippingCost; }
+            /* Log::info(
                 "OrderID: " . $input['order_id'] .
                 " - Fees: " . json_encode($input['sales_fee']) .
                 " - Payments: " . json_encode($input['payment_info'])
-            );
+            ); */
             $orders[] = $input;
         }
         return $orders;

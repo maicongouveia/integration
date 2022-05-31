@@ -22,6 +22,8 @@ function searchForOrders(offset, search = null){
 
 	if (search) {params.q = search;}
 
+    if (window.location.href.includes("cancel")) { params.status = "cancelled"; }
+
 	urlFinal = url + "?";
 
 	Object.keys(params).forEach(
@@ -33,7 +35,6 @@ function searchForOrders(offset, search = null){
 		.then((response) => response.json())
 		.then(
 			function (response){
-                console.log(response);
 				addContent(response);
 				if (offset < limit) {
 					searchForOrders(++offset, search);
@@ -45,7 +46,6 @@ function searchForOrders(offset, search = null){
 		)
 		.catch(function (error){
 			console.log(error);
-            console.log(response);
 			stopLoader();
 		});
 }
@@ -126,7 +126,7 @@ function row(order){
 		} */
 		else if(index == "payment_info") {
 			let innerTable = "<table class='table table-striped'>";
-            console.log(order)
+            //console.log(order)
             //console.log(order[index])
 			order[index].forEach(payment => {
 				innerTable += "<tr>";

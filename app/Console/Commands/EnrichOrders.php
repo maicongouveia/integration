@@ -5,21 +5,21 @@ namespace App\Console\Commands;
 use App\Http\Controllers\Integration;
 use Illuminate\Console\Command;
 
-class UpdateOrdersData extends Command
+class EnrichOrders extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'integration:updateOrdersData {quantity}';
+    protected $signature = 'integration:EnrichOrders {quantity}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Update Orders information and payment data';
+    protected $description = 'Enrich Orders information and payment data';
 
     /**
      * Create a new command instance.
@@ -39,8 +39,6 @@ class UpdateOrdersData extends Command
     public function handle()
     {
         $integration = new Integration();
-        $orders = $integration->getOrdersFromLast30Days();
-
-        //$integration->updateOrdersData($this->argument('quantity'));
+        $integration->enrichOrders($this->argument('quantity'));
     }
 }

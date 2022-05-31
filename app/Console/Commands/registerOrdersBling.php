@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use App\Http\Controllers\Integration;
 use Illuminate\Console\Command;
 
-class registerOrdersBling extends Command
+class RegisterOrdersBling extends Command
 {
     /**
      * The name and signature of the console command.
