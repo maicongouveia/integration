@@ -79,7 +79,7 @@ class Integration extends Controller
                 );
                 return null;
             }
-            Log::info("[blingContaAPagar]: Conta a pagar enviada para Bling: " . $xml);
+            //Log::info("[blingContaAPagar]: Conta a pagar enviada para Bling: " . $xml);
             Log::info(
                 "[blingContaAPagar]: Status: " . $response->status() .
                 " - Body: " . $response->body()
@@ -105,7 +105,7 @@ class Integration extends Controller
                 Log::info("[blingContaAReceber]: Status: " . $response->status() . " - Body: " . $response->body());
                 return null;
             }
-            Log::info("[blingContaAReceber]: Conta a receber enviada para Bling: " . $xml);
+            //Log::info("[blingContaAReceber]: Conta a receber enviada para Bling: " . $xml);
             Log::info("[blingContaAReceber]: Status: " . $response->status() . " - Body: " . $response->body());
             return $response->json();
         }catch(Exception $e){
@@ -200,8 +200,11 @@ class Integration extends Controller
     {
         if ($quantity == null) { $quantity = 1;}
 
+        $tenMinutesLaterDate = date('Y-m-d h:m:s', strtotime("+10 minutes", strtotime('now')));
+
         //Preenche dados que faltam
         $orders_registered = Order::where('need_update_flag', true)
+            ->where('created_in', '>', $tenMinutesLaterDate)
             ->take($quantity)->get();
 
         $mercadoLivre = new Mercadolivre();
@@ -219,7 +222,7 @@ class Integration extends Controller
             $payments = Payment::where('order_id', $order['id'])->get();
 
             $paymentDetails = $mercadoLivre->getPaymentsDetails($payments);
-            Log::info($paymentDetails);
+            //Log::info($paymentDetails);
 
             // Payments
             $payments = $paymentDetails['payment_info'];
@@ -396,7 +399,9 @@ class Integration extends Controller
                 $contaAReceberAmount += $payment['amount'];
             }
 
-            $contaAReceberAmount = $this->sumDeliveryTax($order->fees, $contaAReceberAmount);
+            if ($contaAReceberAmount < 79.00) {
+                $contaAReceberAmount = $this->sumDeliveryTax($order->fees, $contaAReceberAmount);
+            }
 
             $date = new DateTime($order['created_in']);
             $dataWithTermExtension = date(

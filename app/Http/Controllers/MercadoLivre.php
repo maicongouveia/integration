@@ -66,10 +66,10 @@ class Mercadolivre extends Controller
                 return null;
             }
 
-            Log::info(
+            /* Log::info(
                 "[getOrders]: Status: " . $response->status() .
                 " - Body: " . $response->body()
-            );
+            ); */
 
             return $response->json()['results'];
 
@@ -260,7 +260,7 @@ class Mercadolivre extends Controller
         foreach ($payments as $payment) {
             try{
                 $url = env("MERCADOPAGO_API_URL") . "/v1/payments/" . $payment['payment_id'];
-                Log::info($url);
+                //Log::info($url);
                 $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
                             ->get($url);
 
@@ -272,7 +272,7 @@ class Mercadolivre extends Controller
                     return null;
                 }
 
-                Log::info($response->body());
+                //Log::info($response->body());
 
                 $response = array(
                     'sales_fee'     => $this->responseFeeHandler($response->json()),
