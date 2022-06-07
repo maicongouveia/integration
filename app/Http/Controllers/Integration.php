@@ -11,6 +11,7 @@ use App\Models\Fee;
 use App\Models\Order;
 use App\Models\Payment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 
@@ -239,9 +240,24 @@ class Integration extends Controller
             }
 
             // Fee
+            $fees = $paymentDetails['sales_fee'];
 
-            $fees   = $paymentDetails['sales_fee'];
-            $fees[] = $mercadoLivre->getShippingCost($order['order_id']);
+            $shippingInfo = $mercadoLivre->getShippingCost($order['order_id']);
+
+            if ($shippingInfo['base_cost']) {
+                $amount = $shippingInfo['base_cost'] - $shippingInfo['amount'];
+
+                DB::table('shipping_refund')->insert([
+                    'order_id' => $order['id'],
+                    'bling_id' => null,
+                    'amount'   => $amount,
+                ]);
+
+            }
+
+            if ($payment['amount'] < 79.00) {
+                $fees[] = $mercadoLivre->getShippingCost($order['order_id']);
+            }
 
             foreach ($fees as $fee) {
                 if ($fee['amount'] != 0) {
@@ -389,6 +405,62 @@ class Integration extends Controller
                 }
             }
 
+            //Send shipping refund
+
+            $refund_shipping = DB::table('shipping_refund')->where('order_id', $order->id)->take(1)->get();
+
+            if ($refund_shipping) {
+                $historico = "Ref. ao pedido de venda nº " . $order['invoice'] .
+                             " | Reembolso do Frete";
+
+                $date = new DateTime($order['created_in']);
+                $dataWithTermExtension = date(
+                    'd/m/Y',
+                    strtotime("+". $this->termExtensionInDays ." days", strtotime($order['created_in']))
+                );
+                $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
+
+                $contaAReceber = array(
+                    "dataEmissao"  => $date->format('d/m/Y'),
+                    "vencimentoOriginal" => $dataWithTermExtension,
+                    "competencia"  => $date->format('d/m/Y'),
+                    "nroDocumento" => $nroDocumento,
+                    "valor"        => $refund_shipping['amount'], //obrigatorio
+                    "historico"    => $historico,
+                    "categoria"    => "3.1.01.01.02 Revenda Mercadoria (Terceiros)",
+                    "idFormaPagamento" => "1430675",
+                    "portador"   => "1.1.01.02.03 MercadoPago ",
+                    "vendedor"   => "Mercado Livre Full",
+                    "ocorrencia" => array(//obrigatorio
+                        "ocorrenciaTipo" => "U",//obrigatorio
+                        "diaVencimento"  => "",
+                        "nroParcelas"    => ""
+                    ),
+                    "cliente" => array(//obrigatorio
+                        "nome"     => $order->buyer['name'],//obrigatorio
+                        "cpf_cnpj" => $order->buyer['identificationNumber'],
+                        "email"    => $order->buyer['email'],
+                    ),
+                );
+
+                $parser = new Parser();
+                $xml = $parser->arrayToXml($contaAReceber, "<contareceber/>");
+                //dd($xml);
+                if (env('SEND_TO_BLING')) {
+                    $response = $this->blingContaAReceber($xml);
+
+                    if ($response) {
+                        $contaAReceberID = $response['retorno']['contasreceber'][0]['contaReceber']['id'];
+
+                        DB::table('shipping_refund')->where('id', $refund_shipping->id)
+                            ->update(['bling_id' => $contaAReceberID]);
+                    }
+                }
+
+            }
+
+            //Send Conta a Receber
+
             $contaAReceberAmount = 0;
 
             $historico = "Ref. ao pedido de venda nº " . $order['invoice'] .
@@ -444,8 +516,6 @@ class Integration extends Controller
 
                     Payment::where('order_id', $order['id'])->update(['bling_id' => $contaAReceberID]);
 
-
-
                    /*  $dataLiquidacao = new DateTime('NOW');
 
                     $xmlBaixa = array(
@@ -465,6 +535,8 @@ class Integration extends Controller
 
                 }
             }
+
+
 
 
             // Change bling_send_flag
