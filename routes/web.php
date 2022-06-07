@@ -1,7 +1,8 @@
 <?php
 
-use App\Http\Controllers\MercadoLivreOrderController;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\MercadoLivreOrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -22,3 +23,17 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [MercadoLivreOrderController::class, "orders"]);
 Route::get('/cancel', [MercadoLivreOrderController::class, "orders"]);
+Route::get('/contatos', function () {
+
+    $request_data = array(
+        'apikey' => env('BLING_API_KEY'),
+    );
+
+    $response = Http::get('https://bling.com.br/b/Api/v2/contatos/json', $request_data);
+
+    foreach($response->json()['retorno']['contatos'] as $contato) {
+        $contato = $contato['contato'];
+        echo "<br> " . "Nome: " . $contato['nome'] . "<br>";
+    }
+
+});
