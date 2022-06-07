@@ -204,7 +204,7 @@ class Integration extends Controller
 
         //Preenche dados que faltam
         $orders_registered = Order::where('need_update_flag', true)
-            ->where('created_in', '>', $tenMinutesLaterDate)
+            ->where('created_in', '<', $tenMinutesLaterDate)
             ->take($quantity)->get();
 
         $mercadoLivre = new Mercadolivre();
