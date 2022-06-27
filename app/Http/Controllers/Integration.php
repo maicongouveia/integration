@@ -410,24 +410,26 @@ class Integration extends Controller
             $refund_shipping = DB::table('shipping_refund')->where('order_id', $order->id)->take(1)->get();
 
             if ($refund_shipping) {
-                $historico = "Ref. ao pedido de venda nº " . $order['invoice'] .
-                             " | Reembolso do Frete";
+                $refund_shipping  = $refund_shipping[0];
 
                 $date = new DateTime($order['created_in']);
                 $dataWithTermExtension = date(
                     'd/m/Y',
                     strtotime("+". $this->termExtensionInDays ." days", strtotime($order['created_in']))
                 );
+
                 $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
+
+                $historico = "Ref. ao pedido de venda nº " . $nroDocumento . " | Reembolso do Frete";
 
                 $contaAReceber = array(
                     "dataEmissao"  => $date->format('d/m/Y'),
                     "vencimentoOriginal" => $dataWithTermExtension,
                     "competencia"  => $date->format('d/m/Y'),
-                    "nroDocumento" => $nroDocumento,
-                    "valor"        => $refund_shipping['amount'], //obrigatorio
+                    //"nroDocumento" => $nroDocumento,
+                    "valor"        => $refund_shipping->amount, //obrigatorio
                     "historico"    => $historico,
-                    "categoria"    => "3.1.01.01.02 Revenda Mercadoria (Terceiros)",
+                    "categoria"    => "3.1.01.01.08 ABONO POR SUBSIDIO FLEX",
                     "idFormaPagamento" => "1430675",
                     "portador"   => "1.1.01.02.03 MercadoPago ",
                     "vendedor"   => "Mercado Livre Full",
@@ -461,10 +463,11 @@ class Integration extends Controller
 
             //Send Conta a Receber
 
-            $contaAReceberAmount = 0;
+            $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
 
-            $historico = "Ref. ao pedido de venda nº " . $order['invoice'] .
-                        " | Método de pagamento:";
+            $historico = "Ref. ao pedido de venda nº " . $nroDocumento . " | Método de pagamento:";
+
+            $contaAReceberAmount = 0;
 
             foreach ($order->payments as $payment) {
                 $historico .= " ".$payment['method'];
@@ -480,7 +483,6 @@ class Integration extends Controller
                 'd/m/Y',
                 strtotime("+". $this->termExtensionInDays ." days", strtotime($order['created_in']))
             );
-            $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
 
             $contaAReceber = array(
                 "dataEmissao"  => $date->format('d/m/Y'),
