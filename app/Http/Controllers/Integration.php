@@ -414,7 +414,7 @@ class Integration extends Controller
 
             $refund_shipping = DB::table('shipping_refund')->where('order_id', $order->id)->take(1)->get();
 
-            if ($refund_shipping) {
+            if ($refund_shipping->count() > 0) {
                 $refund_shipping  = $refund_shipping[0];
 
                 $date = new DateTime($order['created_in']);
