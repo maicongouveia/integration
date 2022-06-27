@@ -247,17 +247,20 @@ class Integration extends Controller
             if ($shippingInfo['base_cost']) {
                 $amount = $shippingInfo['base_cost'] - $shippingInfo['amount'];
 
-                DB::table('shipping_refund')->insert([
-                    'order_id' => $order['id'],
-                    'bling_id' => null,
-                    'amount'   => $amount,
-                ]);
-
+                if($amount > 0) {
+                    DB::table('shipping_refund')->insert([
+                        'order_id' => $order['id'],
+                        'bling_id' => null,
+                        'amount'   => $amount,
+                    ]);
+                }
             }
 
-            if ($payment['amount'] < 79.00) {
-                $fees[] = $mercadoLivre->getShippingCost($order['order_id']);
-            }
+            $shippingInfo['amount'] = $shippingInfo['shipping_cost'] - $shippingInfo['amount'];
+
+            if ( $shippingInfo['amount'] < 0 ) { $shippingInfo['amount'] = $shippingInfo['amount'] * -1;}
+
+            $fees[] = $shippingInfo;
 
             foreach ($fees as $fee) {
                 if ($fee['amount'] != 0) {
@@ -402,6 +405,8 @@ class Integration extends Controller
 
                         $this->blingBaixaContaAPagar($contaAPagarID, $xmlBaixa);*/
                     }
+                } else {
+                    Log::info("[SEND_TO_BLING][OFF] - [CONTA A PAGAR] - " . $fee['description'] . ' - ' . $fee['amount']);
                 }
             }
 
@@ -457,6 +462,8 @@ class Integration extends Controller
                         DB::table('shipping_refund')->where('id', $refund_shipping->id)
                             ->update(['bling_id' => $contaAReceberID]);
                     }
+                } else {
+                    Log::info("[SEND_TO_BLING][OFF] - [shipping_refund] - " . $refund_shipping->amount);
                 }
 
             }
@@ -474,9 +481,9 @@ class Integration extends Controller
                 $contaAReceberAmount += $payment['amount'];
             }
 
-            if ($contaAReceberAmount < 79.00) {
+            /* if ($contaAReceberAmount < 79.00) {
                 $contaAReceberAmount = $this->sumDeliveryTax($order->fees, $contaAReceberAmount);
-            }
+            } */
 
             $date = new DateTime($order['created_in']);
             $dataWithTermExtension = date(
@@ -536,10 +543,9 @@ class Integration extends Controller
                     $this->blingBaixaContaAReceber($contaAReceberID, $xmlBaixa); */
 
                 }
+            } else {
+                Log::info("[SEND_TO_BLING][OFF] - [CONTA A RECEBER] - " . $contaAReceberAmount);
             }
-
-
-
 
             // Change bling_send_flag
             if (env('SEND_TO_BLING')) {

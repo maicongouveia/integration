@@ -122,9 +122,10 @@ class Mercadolivre extends Controller
                 return null;
             }
             return array(
-                'description' => 'Envio pelo Mercado Envios',
-                'amount'      => $response['shipping_option']['list_cost'],
-                'base_cost'   => $response['base_cost']
+                'description'   => 'Envio pelo Mercado Envios',
+                'amount'        => $response['shipping_option']['list_cost'],
+                'base_cost'     => $response['base_cost'],
+                'shipping_cost' => $response['shipping_option']['cost'],
             );
         } catch (Exception $e) {
             Log::error("[getShippingCost]: " . $e->getMessage());
