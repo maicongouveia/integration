@@ -565,6 +565,17 @@ class Integration extends Controller
 
     public function getOrders()
     {
-        GetNewOrdersJob::dispatch();
+        //GetNewOrdersJob::dispatch();
+
+        $mercadoLivre = new Mercadolivre();
+        $responseOrders = $mercadoLivre->getOrders();
+
+        if($responseOrders) {
+            $orders = $mercadoLivre->responseOrdersHandler($responseOrders);
+            $this->registerOrdersLocal($orders);
+        }
+        else {
+            Log::info("No orders to register locally");
+        }
     }
 }
