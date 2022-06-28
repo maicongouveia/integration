@@ -244,7 +244,7 @@ class Integration extends Controller
 
             $shippingInfo = $mercadoLivre->getShippingCost($order['order_id']);
 
-            if ($shippingInfo['base_cost']) {
+            if ($shippingInfo['logistic_type'] == 'self_service') {
                 $amount = $shippingInfo['base_cost'] - $shippingInfo['amount'];
 
                 if($amount > 0) {

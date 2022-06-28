@@ -126,6 +126,7 @@ class Mercadolivre extends Controller
                 'amount'        => $response['shipping_option']['list_cost'],
                 'base_cost'     => $response['base_cost'],
                 'shipping_cost' => $response['shipping_option']['cost'],
+                'logistic_type' => $response['logistic_type'],
             );
         } catch (Exception $e) {
             Log::error("[getShippingCost]: " . $e->getMessage());
