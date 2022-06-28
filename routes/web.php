@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MercadoLivreOrderController;
+use Illuminate\Support\Facades\DB;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,4 +37,14 @@ Route::get('/contatos', function () {
         echo "<br> " . "Nome: " . $contato['nome'] . "<br>";
     }
 
+});
+
+Route::get('/excluirPedido/{id}', function ($id) {
+    DB::table('shipping_refund')->where('order_id' , $id)->delete();
+    DB::table('buyer')->where('order_id' , $id)->delete();
+    DB::table('fee')->where('order_id' , $id)->delete();
+    DB::table('payment')->where('order_id' , $id)->delete();
+    DB::table('order')->where('id' , $id)->delete();
+
+    return "Pedido $id excluido";
 });
