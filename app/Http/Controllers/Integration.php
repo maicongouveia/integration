@@ -59,6 +59,8 @@ class Integration extends Controller
                     );
                 }
 
+            } else {
+                Log::info("[registerOrdersLocal] Order exists - " . $order['order_id']);
             }
         }
     }
@@ -256,9 +258,11 @@ class Integration extends Controller
                 }
             }
 
+            /*
             $shippingInfo['amount'] = $shippingInfo['shipping_cost'] - $shippingInfo['amount'];
 
             if ( $shippingInfo['amount'] < 0 ) { $shippingInfo['amount'] = $shippingInfo['amount'] * -1;}
+            */
 
             $fees[] = $shippingInfo;
 
@@ -299,13 +303,13 @@ class Integration extends Controller
 
     }
 
-    public function sumDeliveryTax($fees, $amount)
+    public function sumDeliveryTax($amount, $orderId)
     {
-        foreach($fees as $fee){
-            if ($fee['description'] == "Envio pelo Mercado Envios") {
-                $amount += $fee['amount'];
-            }
-        }
+        $mercadoLivre = new Mercadolivre();
+        $shippingInfo = $mercadoLivre->getShippingCost($orderId);
+
+        $amount += $shippingInfo['shipping_cost'];
+
         return $amount;
     }
 
@@ -481,9 +485,7 @@ class Integration extends Controller
                 $contaAReceberAmount += $payment['amount'];
             }
 
-            /* if ($contaAReceberAmount < 79.00) {
-                $contaAReceberAmount = $this->sumDeliveryTax($order->fees, $contaAReceberAmount);
-            } */
+            $contaAReceberAmount = $this->sumDeliveryTax($contaAReceberAmount, $order['order_id']);
 
             $date = new DateTime($order['created_in']);
             $dataWithTermExtension = date(
