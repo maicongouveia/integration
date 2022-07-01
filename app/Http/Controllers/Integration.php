@@ -433,9 +433,15 @@ class Integration extends Controller
                     strtotime("+". $this->termExtensionInDays ." days", strtotime($order['created_in']))
                 );
 
-                $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
+                //Histórico
+                $historico = "Numero do Pedido: " . $order['order_id'];
+                if ($order['invoice']) {
+                    $historico = $historico . " | Nota Fiscal: " . $order['invoice']."/01";
+                } else {
+                    $historico = $historico . " | Nota Fiscal: Não foi emitida";
+                }
 
-                $historico = "Ref. ao pedido de venda nº " . $nroDocumento . " | Reembolso do Frete";
+                $historico = $historico . " | Reembolso do Frete";
 
                 $contaAReceber = array(
                     "dataEmissao"  => $date->format('d/m/Y'),
@@ -480,9 +486,15 @@ class Integration extends Controller
 
             //Send Conta a Receber
 
-            $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
+            //Histórico
+            $historico = "Numero do Pedido: " . $order['order_id'];
+            if ($order['invoice']) {
+                $historico = $historico . " | Nota Fiscal: " . $order['invoice']."/01";
+            } else {
+                $historico = $historico . " | Nota Fiscal: Não foi emitida";
+            }
 
-            $historico = "Ref. ao pedido de venda nº " . $nroDocumento . " | Método de pagamento:";
+            $historico = $historico . " | Método de pagamento:";
 
             $contaAReceberAmount = 0;
 
