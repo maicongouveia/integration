@@ -170,32 +170,33 @@ class Integration extends Controller
     public function registerBuyer($buyer, $order_id)
     {
         //Buyer
+        if($buyer['first_name']){
+            if ($buyer['first_name'] != "Splitter") {
 
-        if ($buyer['first_name'] != "Splitter") {
+                $payer = $buyer;
 
-            $payer = $buyer;
+                $phone = "";
 
-            $phone = "";
+                if ($payer['phone']['area_code']) {
+                    $phone = $phone . $payer['phone']['area_code'];
+                }
 
-            if ($payer['phone']['area_code']) {
-                $phone = $phone . $payer['phone']['area_code'];
+                if ($payer['phone']['extension']) {
+                    $phone = $phone . $payer['phone']['extension'];
+                }
+
+                if ($payer['phone']['number']) {
+                    $phone = $phone . $payer['phone']['number'];
+                }
+
+                Buyer::where('order_id', $order_id)->update([
+                    'name'                  => $payer['first_name'] . " "  . $payer['last_name'],
+                    'email'                 => $payer['email'],
+                    'identificationType'    => $payer['identification']['type'],
+                    'identificationNumber'  => $payer['identification']['number'],
+                    'phone'                 => $phone,
+                ]);
             }
-
-            if ($payer['phone']['extension']) {
-                $phone = $phone . $payer['phone']['extension'];
-            }
-
-            if ($payer['phone']['number']) {
-                $phone = $phone . $payer['phone']['number'];
-            }
-
-            Buyer::where('order_id', $order_id)->update([
-                'name'                  => $payer['first_name'] . " "  . $payer['last_name'],
-                'email'                 => $payer['email'],
-                'identificationType'    => $payer['identification']['type'],
-                'identificationNumber'  => $payer['identification']['number'],
-                'phone'                 => $phone,
-            ]);
         }
     }
 
@@ -246,25 +247,30 @@ class Integration extends Controller
 
             $shippingInfo = $mercadoLivre->getShippingCost($order['order_id']);
 
-            if ($shippingInfo['logistic_type'] == 'self_service') {
-                $amount = $shippingInfo['base_cost'] - $shippingInfo['amount'];
+            if ($shippingInfo) {
 
-                if($amount > 0) {
-                    DB::table('shipping_refund')->insert([
-                        'order_id' => $order['id'],
-                        'bling_id' => null,
-                        'amount'   => $amount,
-                    ]);
+                if ($shippingInfo['logistic_type'] == 'self_service') {
+                    $amount = $shippingInfo['base_cost'] - $shippingInfo['amount'];
+
+                    if($amount > 0) {
+                        DB::table('shipping_refund')->insert([
+                            'order_id' => $order['id'],
+                            'bling_id' => null,
+                            'amount'   => $amount,
+                        ]);
+                    }
+                }
+
+                /*
+                $shippingInfo['amount'] = $shippingInfo['shipping_cost'] - $shippingInfo['amount'];
+
+                if ( $shippingInfo['amount'] < 0 ) { $shippingInfo['amount'] = $shippingInfo['amount'] * -1;}
+                */
+
+                if ($shippingInfo['logistic_type'] != 'self_service') {
+                    $fees[] = $shippingInfo;
                 }
             }
-
-            /*
-            $shippingInfo['amount'] = $shippingInfo['shipping_cost'] - $shippingInfo['amount'];
-
-            if ( $shippingInfo['amount'] < 0 ) { $shippingInfo['amount'] = $shippingInfo['amount'] * -1;}
-            */
-
-            $fees[] = $shippingInfo;
 
             foreach ($fees as $fee) {
                 if ($fee['amount'] != 0) {
@@ -308,7 +314,7 @@ class Integration extends Controller
         $mercadoLivre = new Mercadolivre();
         $shippingInfo = $mercadoLivre->getShippingCost($orderId);
 
-        $amount += $shippingInfo['shipping_cost'];
+        if($shippingInfo){ $amount += $shippingInfo['shipping_cost']; }
 
         return $amount;
     }

@@ -36,13 +36,11 @@ class Mercadolivre extends Controller
             'seller' => env('MERCADOLIVRE_SELLER_ID'),
             'limit'  => 50,
             'sort'   => 'date_desc',
-            'order.status' => 'paid',
+            //'order.status' => 'paid',
         );
 
         if (env('TEST_MODE')) {
-            Log::info(
-                "[getOrders]: [Test Mode On] ORDER_ID: " . env('ORDER_ID')
-            );
+            Log::info("[getOrders]: [Test Mode On] ORDER_ID: " . env('ORDER_ID'));
             $request_data['q'] = env('ORDER_ID');
         }
 
