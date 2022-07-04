@@ -598,4 +598,28 @@ class Integration extends Controller
             Log::info("No orders to register locally");
         }
     }
+
+    public function getOrdersToUpdateStatus()
+    {
+        $paymentDate = now()->subDays(5);
+        $limitDate = now()->subDays(28);
+        $orders = DB::table('orders')
+                        ->where('created_in', '>=', $paymentDate)
+                        ->where('created_in', '<=', $limitDate)
+                        ->where('need_update_flag', 0)
+                        ->where('bling_send_flag', 1)
+                        ->where('status', 'PENDING')
+                        ->get();
+
+        return $orders;
+    }
+
+    public function updateOrdersStatus($orders)
+    {
+        $mercadoLivre = new Mercadolivre();
+
+        foreach($orders as $order) {
+
+        }
+    }
 }

@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 
 Route::get('/', [MercadoLivreOrderController::class, "orders"]);
 Route::get('/cancel', [MercadoLivreOrderController::class, "orders"]);
+
 Route::get('/contatos', function () {
 
     $request_data = array(
@@ -47,4 +48,11 @@ Route::get('/excluirPedido/{id}', function ($id) {
     DB::table('order')->where('id' , $id)->delete();
 
     return "Pedido $id excluido";
+});
+
+
+Route::get('/teste', function () {
+
+    return now()->subDays(5);
+
 });
