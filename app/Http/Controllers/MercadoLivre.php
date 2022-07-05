@@ -490,7 +490,9 @@ class Mercadolivre extends Controller
             $payments_ids = [];
 
             foreach ($order['payments'] as $payment) {
-                array_push($payments_ids, $payment['id']);
+                if ($payment['status'] == "approved") {
+                    array_push($payments_ids, $payment['id']);
+                }
             }
 
             $i = [
