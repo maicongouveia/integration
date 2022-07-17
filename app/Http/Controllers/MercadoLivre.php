@@ -134,15 +134,11 @@ class Mercadolivre extends Controller
 
     public function getPaymentDetails($payment)
     {
-        $paymentResponse = array();
-        $paymentResponse['sales_fee'] = array();
-        $paymentResponse['payment_info'] = array();
 
         try{
             $url = env("MERCADOPAGO_API_URL") . "/v1/payments/" . $payment['payment_id'];
 
-            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
-                        ->get($url);
+            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get($url);
 
             if ($response->status() != 200) {
                 $log =  "[getPaymentDetails]:PaymentId: " . $payment['payment_id'] .
@@ -152,41 +148,16 @@ class Mercadolivre extends Controller
                 return null;
             }
 
-            $response = array(
-                'sales_fee'     => $this->responseFeeHandler($response->json()),
-                'payer'         => $response->json()['payer'],
-                'payment_info'  =>  array(
-                    array(
+            return $response = array(
                         'method' => $response['payment_method_id'],
                         'amount' => $response['transaction_amount'],
-                    ),
-                ),
-            );
+                    );
 
         }catch(Exception $e){
             $log = "[getPaymentDetails]: " . $e->getMessage();
             Log::error($log);
             return null;
         }
-
-        $sales_fee = array_merge(
-            $paymentResponse['sales_fee'],
-            $response['sales_fee']
-        );
-
-        $paymentResponse['sales_fee'] = $sales_fee;
-
-        $payment_info = array_merge(
-            $paymentResponse['payment_info'],
-            $response['payment_info']
-        );
-
-        $paymentResponse['payment_info'] = $payment_info;
-
-        $paymentResponse['payer'] = $response['payer'];
-
-        return $paymentResponse;
-
     }
 
     public function getPaymentsDetailsFroFront($payments)
@@ -262,8 +233,7 @@ class Mercadolivre extends Controller
             try{
                 $url = env("MERCADOPAGO_API_URL") . "/v1/payments/" . $payment['payment_id'];
                 //Log::info($url);
-                $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
-                            ->get($url);
+                $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get($url);
 
                 if ($response->status() != 200) {
                     $log =  "[getPaymentDetails]:PaymentId: " . $payment['payment_id'] .

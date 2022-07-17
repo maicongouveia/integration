@@ -50,7 +50,7 @@ class Integration extends Controller
                 $payments_ids = $order['payments_ids'];
 
                 foreach ($payments_ids as $payment_id) {
-                    Log:info('[order_id: '.$orderCreated['id'] . ' - payment_id: '.$payment_id.']');
+                    Log::info('[order_id: ' . $orderCreated['id'] . ' - payment_id: '.$payment_id.']');
                     Payment::create(
                         [
                             'order_id'    => $orderCreated['id'],
@@ -225,22 +225,26 @@ class Integration extends Controller
 
             $payments = Payment::where('order_id', $order['id'])->get();
 
-            $paymentDetails = $mercadoLivre->getPaymentsDetails($payments);
-            //Log::info($paymentDetails);
-
-            // Payments
-            $payments = $paymentDetails['payment_info'];
-
             foreach ($payments as $payment) {
-                $date = new DateTime($payment['date_approved']);
-                Payment::where('order_id',$order['id'])
-                    ->update(
-                    [
-                        'method'       => $payment['method'],
-                        'amount'       => $payment['amount'],
-                        'payment_date' => $date->format('Y-m-d H:i:s')
-                    ]);
+
+                $paymentDetail = $mercadoLivre->getPaymentDetails($payment);
+
+                if($paymentDetail){
+                    $date = new DateTime($payment['date_approved']);
+                    Payment::where('payment_id',$payment['payment_id'])
+                        ->update(
+                        [
+                            'method'       => $paymentDetail['method'],
+                            'amount'       => $paymentDetail['amount'],
+                            'payment_date' => $date->format('Y-m-d H:i:s')
+                        ]);
+                } else {
+                    throw new Exception("[enrichPayment]: Payment ID: " . $payment['payment_id']);
+                }
+
             }
+
+            $paymentDetails = $mercadoLivre->getPaymentsDetails($payments);
 
             // Fee
             $fees = $paymentDetails['sales_fee'];
