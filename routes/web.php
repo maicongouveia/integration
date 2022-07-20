@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MercadoLivreOrderController;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -16,15 +17,7 @@ use Illuminate\Support\Facades\DB;
 |
 */
 
-/* Route::get('/', function () {
-    return view('welcome');
-});
- */
-
-
-Route::get('/', [MercadoLivreOrderController::class, "orders"]);
-Route::get('/cancel', [MercadoLivreOrderController::class, "orders"]);
-
+//Route::get('/', [MercadoLivreOrderController::class, "orders"]);
 Route::get('/contatos', function () {
 
     $request_data = array(
@@ -50,9 +43,9 @@ Route::get('/excluirPedido/{id}', function ($id) {
     return "Pedido $id excluido";
 });
 
-
 Route::get('/teste', function () {
 
-    return now()->subDays(5);
+    $deliveryDate = Carbon::parse("2022-07-15T07:05:32.456-04:00");
+    dd($deliveryDate->toString(), $deliveryDate->addDays(5)->toString(), now()->toString(), now()->lessThanOrEqualTo($deliveryDate->addDays(5)));
 
 });
