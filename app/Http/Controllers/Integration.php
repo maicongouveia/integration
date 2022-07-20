@@ -618,36 +618,8 @@ class Integration extends Controller
         return $orders;
     }
 
-    public function updateOrderStatusQueue($order)
+    public function getPendentConta()
     {
-        $mercadoLivre = new Mercadolivre();
-        $orderResponse = $mercadoLivre->getOrderStatus($order['order_id']);
-        $tags = $orderResponse['tags'];
-        $status = $orderResponse['status'];
-
-        if (in_array("paid", $tags) && in_array("delivered", $tags)) {
-            DB::table('order')->where('id', $order['id'])->update([
-                    'status' => "SEND_PAID_TO_BLING"
-            ]);
-        } else if (in_array("paid", $tags) && $status == "cancelled") {
-            DB::table('order')->where('id', $order['id'])->update([
-                    'status' => "SEND_REFUND_TO_BLING"
-            ]);
-        } else if (in_array("not_delivered", $tags) && in_array("not_paid", $tags) && $status == "cancelled") {
-            DB::table('order')->where('id', $order['id'])->update([
-                    'status' => "SEND_CANCEL_TO_BLING"
-            ]);
-        }
-
 
     }
-
-    public function updateOrdersStatus($orders)
-    {
-        foreach($orders as $order) {
-            $this->updateOrderStatus($order);
-        }
-    }
-
-
 }
