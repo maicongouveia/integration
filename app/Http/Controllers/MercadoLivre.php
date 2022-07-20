@@ -104,6 +104,28 @@ class Mercadolivre extends Controller
         }
     } */
 
+    public function getShippingDetails($orderId)
+    {
+        try{
+
+            $url = env("MERCADOLIVRE_API_URL") . "/orders/" . $orderId . "/shipments";
+            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get($url);
+
+            if ($response->status() != 200) {
+                Log::info(
+                    "[getShippingDetails]: Order ID: " . $orderId .
+                    " - Status: " . $response->status() .
+                    " - Body: " . json_encode($response->json())
+                );
+                return null;
+            }
+            return $response;
+        } catch (Exception $e) {
+            Log::error("[getShippingDetails]: " . $e->getMessage());
+            return null;
+        }
+    }
+
     public function getShippingCost($orderId)
     {
         try{

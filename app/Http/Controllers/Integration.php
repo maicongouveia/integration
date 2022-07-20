@@ -10,6 +10,7 @@ use App\Models\Buyer;
 use App\Models\Fee;
 use App\Models\Order;
 use App\Models\Payment;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -603,43 +604,59 @@ class Integration extends Controller
         }
     }
 
-    public function getOrdersToUpdateStatus()
+    public function getOrdersToUpdateStatus($quantity)
     {
-        $paymentDate = now()->subDays(5);
-        $limitDate = now()->subDays(28);
+        $limitDate = now()->subDays(30);
         $orders = DB::table('orders')
-                        ->where('created_in', '>=', $paymentDate)
                         ->where('created_in', '<=', $limitDate)
                         ->where('need_update_flag', 0)
                         ->where('bling_send_flag', 1)
-                        ->where('status', 'PENDING')
-                        ->get();
+                        ->where('status', 'PENDING');
 
-        return $orders;
+        if($quantity){
+            return $orders->take($quantity)->get();
+        }
+        return $orders->get();
     }
 
-    public function updateOrderStatusQueue($order)
+    public function isOrderPaid($orderId)
+    {
+        $mercadoLivre = new Mercadolivre();
+        $shipmentResponse = $mercadoLivre->getShippingDetails($orderId);
+        if ($shipmentResponse) {
+            if($shipmentResponse['status'] == "delivered"){
+                $statusHistory = $shipmentResponse['status_history'];
+                $deliveryDate = Carbon::parse($statusHistory['date_delivered']);
+                if (now()->lessThanOrEqualTo($deliveryDate->addDays(5))){
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public function updateOrderStatus($order)
     {
         $mercadoLivre = new Mercadolivre();
         $orderResponse = $mercadoLivre->getOrderStatus($order['order_id']);
         $tags = $orderResponse['tags'];
         $status = $orderResponse['status'];
 
+        if(!$orderResponse) { return false;}
+
         if (in_array("paid", $tags) && in_array("delivered", $tags)) {
-            DB::table('order')->where('id', $order['id'])->update([
-                    'status' => "SEND_PAID_TO_BLING"
-            ]);
+            if($this->isOrderPaid($order['order_id'])){
+                DB::table('order')->where('id', $order['id'])->update(['status' => "SEND_PAID_TO_BLING"]);
+            }
         } else if (in_array("paid", $tags) && $status == "cancelled") {
             DB::table('order')->where('id', $order['id'])->update([
-                    'status' => "SEND_REFUND_TO_BLING"
+                    'status' => "REFUND"
             ]);
         } else if (in_array("not_delivered", $tags) && in_array("not_paid", $tags) && $status == "cancelled") {
             DB::table('order')->where('id', $order['id'])->update([
-                    'status' => "SEND_CANCEL_TO_BLING"
+                    'status' => "CANCEL"
             ]);
         }
-
-
     }
 
     public function updateOrdersStatus($orders)
@@ -648,6 +665,5 @@ class Integration extends Controller
             $this->updateOrderStatus($order);
         }
     }
-
 
 }
