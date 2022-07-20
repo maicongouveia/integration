@@ -5,21 +5,21 @@ namespace App\Console\Commands;
 use App\Http\Controllers\Integration;
 use Illuminate\Console\Command;
 
-class UpdateOrdersData extends Command
+class SendBaixaToBling extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'integration:updateOrdersData {quantity}';
+    protected $signature = 'integration:sendBaixaToBling {quantity}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Update Orders information and payment data';
+    protected $description = 'Send baixa to Bling';
 
     /**
      * Create a new command instance.
@@ -39,8 +39,8 @@ class UpdateOrdersData extends Command
     public function handle()
     {
         $integration = new Integration();
-        $orders = $integration->getOrdersFromLast30Days();
-
-        //$integration->updateOrdersData($this->argument('quantity'));
+        $quantity = $this->argument('quantity');
+        $orders = $integration->getPaidOrdersToSend($quantity);
+        foreach ($orders as $order){$integration->sendBaixaToBling($order);}
     }
 }

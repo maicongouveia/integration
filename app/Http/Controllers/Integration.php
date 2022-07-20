@@ -647,6 +647,8 @@ class Integration extends Controller
         if (in_array("paid", $tags) && in_array("delivered", $tags)) {
             if($this->isOrderPaid($order['order_id'])){
                 DB::table('order')->where('id', $order['id'])->update(['status' => "SEND_PAID_TO_BLING"]);
+                DB::table('payment')->where('order_id', $order['id'])->update(['send_baixa_to_bling' => 1]);
+                DB::table('fee')->where('order_id', $order['id'])->update(['send_baixa_to_bling' => 1]);
             }
         } else if (in_array("paid", $tags) && $status == "cancelled") {
             DB::table('order')->where('id', $order['id'])->update([
@@ -664,6 +666,117 @@ class Integration extends Controller
         foreach($orders as $order) {
             $this->updateOrderStatus($order);
         }
+    }
+
+    public function getPaidOrdersToSend($quantity)
+    {
+        $orders = DB::table('orders')
+                        ->where('need_update_flag', 0)
+                        ->where('bling_send_flag', 1)
+                        ->where('status', 'SEND_PAID_TO_BLING');
+
+        if ($quantity){
+            return $orders->take($quantity)->get();
+        }
+
+        return $orders->get();
+    }
+
+    public function getPaymentFromOrder($orderId)
+    {
+        $payments = DB::table('payment')
+                    ->where('order_id', $orderId)
+                    ->get();
+
+        return $payments;
+    }
+
+    public function getFeeFromOrder($orderId)
+    {
+        $fees = DB::table('fee')
+                    ->where('order_id', $orderId)
+                    ->get();
+
+        return $fees;
+    }
+
+    public function xmlBaixa($tipo)
+    {
+
+        //contasreceber / contapagar
+        $dataLiquidacao = new DateTime('NOW');
+
+        $xmlBaixa = array(
+            "$tipo" => array(
+                "dataLiquidacao" => $dataLiquidacao->format('d/m/Y'),
+                "juros"          => "",
+                "desconto"       => "",
+                "acrescimo"      => "",
+                "tarifa"         => ""
+            )
+        );
+
+        $parser = new Parser();
+        $xmlBaixa = $parser->arrayToXml($xmlBaixa, "<$tipo/>");
+        return $xmlBaixa;
+    }
+
+    public function sendBaixaToBling($order)
+    {
+        $orderId  = $order['order_id'];
+        $fees     = $this->getFeeFromOrder($orderId);
+        $payments = $this->getPaymentFromOrder($orderId);
+
+        foreach($fees as $fee){
+            if($fee['send_baixa_to_bling']){
+                $xml = $this->xmlBaixa("contapagar");
+                if(env('SEND_TO_BLING')){
+                    $response = $this->blingBaixaContaAPagar($fee['bling_id'], $xml);
+                } else {
+                    Log::info("[SEND_TO_BLING: FALSE][BAIXA][CONTA A PAGAR]: Order ID: " . $fee['order_id'] . ' - Bling ID: ' . $fee['bling_id'] . " - ID: " . $fee['id']);
+                }
+                if($response){
+                    DB::table('fee')->where('id', $fee['id'])->update(['send_baixa_to_bling' => '0']);
+                    Log::info("[BAIXA][CONTA A PAGAR]: Order ID: " . $fee['order_id'] . ' - Bling ID: ' . $fee['bling_id'] . " - ID: " . $fee['id']);
+                }
+            }
+        }
+
+        foreach($payments as $payment){
+            if($payment['send_baixa_to_bling']){
+                $xml = $this->xmlBaixa("contasreceber");
+                if(env('SEND_TO_BLING')){
+                    $response = $this->blingBaixaContaAReceber($payment['bling_id'], $xml);
+                } else {
+                    Log::info("[SEND_TO_BLING: FALSE][BAIXA][CONTA A RECEBER]: Order ID: " . $payment['order_id'] . ' - Bling ID: ' . $payment['bling_id'] . " - ID: " . $payment['id']);
+                }
+                if($response){
+                    DB::table('payment')->where('id', $payment['id'])->update(['send_baixa_to_bling' => '0']);
+                    Log::info("[BAIXA][CONTA A RECEBER]: Order ID: " . $payment['order_id'] . ' - Bling ID: ' . $payment['bling_id'] . " - ID: " . $payment['id']);
+                }
+            }
+        }
+
+        $fees     = $this->getFeeFromOrder($orderId);
+        $payments = $this->getPaymentFromOrder($orderId);
+
+        $isAllSendedToBling = true;
+
+        foreach($fees as $fee){
+            if($fee['send_baixa_to_bling']){
+                $isAllSendedToBling = false;
+            }
+        }
+        foreach($payments as $payment){
+            if($payment['send_baixa_to_bling']){
+                $isAllSendedToBling = false;
+            }
+        }
+
+        if ($isAllSendedToBling){
+            DB::table('order')->where('id', $orderId)->update(['status' => 'PAID']);
+        }
+
     }
 
 }
