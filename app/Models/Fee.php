@@ -26,5 +26,6 @@ class Fee extends Model
         'bling_id',
         'description',
         'amount',
+        'send_baixa_to_bling',
     ];
 }

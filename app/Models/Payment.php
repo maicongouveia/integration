@@ -28,5 +28,6 @@ class Payment extends Model
         'method',
         'amount',
         'payment_date',
+        'send_baixa_to_bling',
     ];
 }

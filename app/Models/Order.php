@@ -26,6 +26,7 @@ class Order extends Model
         'created_in',
         'need_update_flag',
         'bling_send_flag',
+        'status',
     ];
 
     public function payments()
