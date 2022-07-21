@@ -300,7 +300,7 @@ class Integration extends Controller
                 }
             }
 
-            if($paymentDetails['payer']){
+            if(array_key_exists('payer',$paymentDetails)){
                 $this->registerBuyer($paymentDetails['payer'], $order['id']);
             }
 
