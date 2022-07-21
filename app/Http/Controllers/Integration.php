@@ -53,13 +53,16 @@ class Integration extends Controller
 
                 foreach ($payments_ids as $payment_id) {
                     Log::info('[order_id: ' . $orderCreated['id'] . ' - payment_id: '.$payment_id.']');
-                    Payment::create(
-                        [
-                            'order_id'    => $orderCreated['id'],
-                            'payment_id'  => $payment_id,
-                            'send_baixa_to_bling' => 0,
-                        ]
-                    );
+                    $exists = DB::table('payment')->where('payment_id', $payment_id)->first();
+                    if(!$exists){
+                        Payment::create(
+                            [
+                                'order_id'    => $orderCreated['id'],
+                                'payment_id'  => $payment_id,
+                                'send_baixa_to_bling' => 0,
+                            ]
+                        );
+                    }
                 }
 
             } else {
@@ -283,14 +286,17 @@ class Integration extends Controller
 
             foreach ($fees as $fee) {
                 if ($fee['amount'] != 0) {
-                    Fee::create(
-                        [
-                            'order_id'    => $order['id'],
-                            'description' => $fee['description'],
-                            'amount'      => $fee['amount'],
-                            'send_baixa_to_bling' => 0,
-                        ]
-                    );
+                    $exists = DB::table('fee')->where('order_id', $order['id'])->where('description', $fee['description'])->where('amount', $fee['amount'])->first();
+                    if(!$exists){
+                        Fee::create(
+                            [
+                                'order_id'    => $order['id'],
+                                'description' => $fee['description'],
+                                'amount'      => $fee['amount'],
+                                'send_baixa_to_bling' => 0,
+                            ]
+                        );
+                    }
                 }
             }
 
