@@ -294,7 +294,9 @@ class Integration extends Controller
                 }
             }
 
-            $this->registerBuyer($paymentDetails['payer'], $order['id']);
+            if($paymentDetails['payer']){
+                $this->registerBuyer($paymentDetails['payer'], $order['id']);
+            }
 
             // Change need_update_flag
             Order::where('id', $order['id'])
