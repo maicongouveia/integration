@@ -30,6 +30,43 @@ class Mercadolivre extends Controller
         }
     }
 
+    public function getOrder($orderId)
+    {
+        $request_data = array(
+            'seller' => env('MERCADOLIVRE_SELLER_ID'),
+            'limit'  => 1,
+            'sort'   => 'date_desc',
+            'q'      => $orderId,
+        );
+
+        try{
+            $url = env("MERCADOLIVRE_API_URL") . "/orders/search";
+
+            $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))
+                        ->get($url, $request_data);
+
+            if ($response->status() != 200) {
+                Log::warning(
+                    "[getOrders]: Status: " . $response->status() .
+                    " - Body: " . $response->body()
+                );
+                return null;
+            }
+
+            /* Log::info(
+                "[getOrders]: Status: " . $response->status() .
+                " - Body: " . $response->body()
+            ); */
+
+            return $response->json()['results'];
+
+        }catch(Exception $e){
+            Log::error("[getOrders]: " . $e->getMessage());
+            dd("[getOrders]: " . $e->getMessage());
+            return null;
+        }
+    }
+
     public function getOrders()
     {
         $request_data = array(
