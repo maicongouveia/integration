@@ -622,7 +622,7 @@ class Integration extends Controller
         $tags = $orderResponse['tags'];
         $status = $orderResponse['status'];
 
-        if (in_array("paid", $tags) && in_array("not_delivered", $tags)) { //if (in_array("paid", $tags) && in_array("delivered", $tags)) {
+        if (in_array("paid", $tags) && in_array("delivered", $tags)) {
             if($this->isOrderPaid($order->order_id)){
                 DB::table('order')->where('id', $order->id)->update(['status' => "SEND_PAID_TO_BLING"]);
                 DB::table('payment')->where('order_id', $order->id)->update(['send_baixa_to_bling' => 1]);
