@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MercadoLivreOrderController;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /*
 |--------------------------------------------------------------------------
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 */
 
 //Route::get('/', [MercadoLivreOrderController::class, "orders"]);
-Route::get('/contatos', function () {
+/* Route::get('/contatos', function () {
 
     $request_data = array(
         'apikey' => env('BLING_API_KEY'),
@@ -31,7 +32,7 @@ Route::get('/contatos', function () {
         echo "<br> " . "Nome: " . $contato['nome'] . "<br>";
     }
 
-});
+}); */
 
 Route::get('/excluirPedido/{id}', function ($id) {
     DB::table('shipping_refund')->where('order_id' , $id)->delete();
@@ -43,9 +44,27 @@ Route::get('/excluirPedido/{id}', function ($id) {
     return "Pedido $id excluido";
 });
 
-Route::get('/teste', function () {
+Route::get('/rotina', function (){
 
-    $deliveryDate = Carbon::parse("2022-07-15T07:05:32.456-04:00");
-    dd($deliveryDate->toString(), $deliveryDate->addDays(5)->toString(), now()->toString(), now()->lessThanOrEqualTo($deliveryDate->addDays(5)));
+    $config = DB::table('config')->first();
+
+    if($config->schedule_on){
+        DB::table('config')->update(['schedule_on' => 0]);
+        Log::info('-----------------');
+        Log::info('[ROTINA] [DESLIGADA]');
+        Log::info('-----------------');
+        return "<center><h1>Rotina desligada</h1></center>";
+    } else {
+        DB::table('config')->update(['schedule_on' => 1]);
+        Log::info('-----------------');
+        Log::info('[ROTINA] [LIGADA]');
+        Log::info('-----------------');
+        return "<center><h1>Rotina ligada</h1></center>";
+    }
+});
+
+Route::get('/pedidos', function () {
+
+    return DB::table('order')->get();
 
 });
