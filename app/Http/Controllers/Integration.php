@@ -35,6 +35,7 @@ class Integration extends Controller
                         'created_in'       => $date,
                         'need_update_flag' => 1,
                         'bling_send_flag'  => 0,
+                        'status'           => "PENDING",
                     ]
                 );
 
@@ -56,6 +57,7 @@ class Integration extends Controller
                         [
                             'order_id'    => $orderCreated['id'],
                             'payment_id'  => $payment_id,
+                            'send_baixa_to_bling' => 0,
                         ]
                     );
                 }
@@ -130,15 +132,15 @@ class Integration extends Controller
 
             if ($response->status() != 200) {
                 Log::warning(
-                    "[blingBaixaContaAPagar]: Status: " . $response->status() .
+                    "[blingBaixaContaAPagar]: ID: $id - Status: " . $response->status() .
                     " - Body: " . $response->body()
                 );
                 return null;
             }
-            Log::info("Baixa confirmada de conta a pagar registrada no Bling: " . $xml);
-            return $response->json();
+            Log::info("[blingBaixaContaAPagar][Baixa confirmada]: ID: $id - [XML] " . $xml . " [Response] " . json_encode($response->json()));
+            return true;
         }catch(Exception $e){
-            Log::error("[blingBaixaContaAPagar]: " . $e->getMessage());
+            Log::error("[blingBaixaContaAPagar]: ID: $id - [Error] " . $e->getMessage());
             return null;
         }
     }
@@ -155,15 +157,15 @@ class Integration extends Controller
 
             if ($response->status() != 200) {
                 Log::warning(
-                    "[blingBaixaContaAReceber]: Status: " . $response->status() .
+                    "[blingBaixaContaAReceber]: ID: $id - Status: " . $response->status() .
                     " - Body: " . $response->body()
                 );
                 return null;
             }
-            Log::info("Baixa confirmada de conta a receber registrada no Bling: " . $xml);
-            return $response->json();
+            Log::info("[blingBaixaContaAReceber][Baixa confirmada]: ID: $id - [XML] " . $xml . " [Response] " . json_encode($response->json()));
+            return true;
         }catch(Exception $e){
-            Log::error("[blingBaixaContaAReceber]: " . $e->getMessage());
+            Log::error("[blingBaixaContaAReceber]: ID: $id [Error] " . $e->getMessage());
             return null;
         }
     }
@@ -205,7 +207,7 @@ class Integration extends Controller
     {
         if ($quantity == null) { $quantity = 1;}
 
-        $tenMinutesLaterDate = date('Y-m-d h:m:s', strtotime("+10 minutes", strtotime('now')));
+        $tenMinutesLaterDate = now()->addMinutes(10);
 
         //Preenche dados que faltam
         $orders_registered = Order::where('need_update_flag', true)
@@ -217,11 +219,13 @@ class Integration extends Controller
         foreach ($orders_registered as $order) {
 
             //Pegar Nota Fiscal
-            $invoice_number = $mercadoLivre->getInvoice($order['order_id']);
+            if($order['invoice']) {
+                $invoice_number = $mercadoLivre->getInvoice($order['order_id']);
 
-            if ($invoice_number) {
-                Order::where('id', $order['id'])
-                    ->update(['invoice' => $invoice_number]);
+                if ($invoice_number) {
+                    Order::where('id', $order['id'])
+                        ->update(['invoice' => $invoice_number]);
+                }
             }
 
             $payments = Payment::where('order_id', $order['id'])->get();
@@ -284,6 +288,7 @@ class Integration extends Controller
                             'order_id'    => $order['id'],
                             'description' => $fee['description'],
                             'amount'      => $fee['amount'],
+                            'send_baixa_to_bling' => 0,
                         ]
                     );
                 }
@@ -334,14 +339,14 @@ class Integration extends Controller
             ->take($quantity)->get();
 
         foreach ($orders_not_send as $order) {
+            $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
             // Contas a pagar
             //dd($order);
             foreach ($order->fees as $fee) {
-                //dd($order);
+                if($fee->bling_id) {continue;}
+
                 $date = new DateTime($order['created_in']);
                 $dataWithTermExtension = date('d/m/Y', strtotime("+". $this->termExtensionInDays ." days",strtotime($order['created_in'])));
-
-                $nroDocumento = ($order['invoice']) ? $order['invoice']."/01" : $order['order_id'];
 
                 //Histórico
                 $historico = "Numero do Pedido: " . $order['order_id'] . " | Descrição: " . $fee['description'];
@@ -396,32 +401,10 @@ class Integration extends Controller
                     // Dar baixar contas a pagar
                     if ($response) {
                         $contaAPagarID = $response['retorno']['contaspagar'][0]['contapagar']['id'];
-
-                        Fee::where('order_id', $order['id'])->update(['bling_id' => $contaAPagarID]);
-
-                     /*
-                        $dataLiquidacao = new DateTime('NOW');
-
-                        $xmlBaixa = array(
-                            "contapagar" => array(
-                                "dataLiquidacao" => $dataLiquidacao->format('d/m/Y'),
-                                "juros"          => "",
-                                "desconto"       => "",
-                                "acrescimo"      => "",
-                                "tarifa"         => ""
-                            )
-                        );
-
-                        $parser = new Parser();
-                        $xmlBaixa = $parser->arrayToXml(
-                            $xmlBaixa,
-                            "<contapagar/>"
-                        );
-
-                        $this->blingBaixaContaAPagar($contaAPagarID, $xmlBaixa);*/
+                        Fee::where('id', $fee['id'])->update(['bling_id' => $contaAPagarID]);
                     }
                 } else {
-                    Log::info("[SEND_TO_BLING][OFF] - [CONTA A PAGAR] - " . $fee['description'] . ' - ' . $fee['amount']);
+                    Log::info("[SEND_TO_BLING][OFF] - [CONTA A PAGAR] - Order ID: " . $fee['order_id'] . " - ID: " . $fee['id'] . " - " . $fee['description'] . ' - ' . $fee['amount']);
                 }
             }
 
@@ -543,49 +526,42 @@ class Integration extends Controller
             $xml = $parser->arrayToXml($contaAReceber, "<contareceber/>");
             //dd($xml);
             if (env('SEND_TO_BLING')) {
-                $response = $this->blingContaAReceber($xml);
-                // Dar baixar contas a receber
-                if ($response) {
-                    $contaAReceberID = $response['retorno']['contasreceber'][0]['contaReceber']['id'];
-
-                    Payment::where('order_id', $order['id'])->update(['bling_id' => $contaAReceberID]);
-
-                   /*  $dataLiquidacao = new DateTime('NOW');
-
-                    $xmlBaixa = array(
-                        "contasreceber" => array(
-                            "dataLiquidacao" => $dataLiquidacao->format('d/m/Y'),
-                            "juros"          => "",
-                            "desconto"       => "",
-                            "acrescimo"      => "",
-                            "tarifa"         => ""
-                        )
-                    );
-
-                    $parser = new Parser();
-                    $xmlBaixa = $parser->arrayToXml($xmlBaixa, "<contasreceber/>");
-
-                    $this->blingBaixaContaAReceber($contaAReceberID, $xmlBaixa); */
-
+                if(!$order->payments[0]['bling_id']){
+                    $response = $this->blingContaAReceber($xml);
+                    // Dar baixar contas a receber
+                    if ($response) {
+                        $contaAReceberID = $response['retorno']['contasreceber'][0]['contaReceber']['id'];
+                        Payment::where('order_id', $order['id'])->update(['bling_id' => $contaAReceberID]);
+                    }
                 }
             } else {
-                Log::info("[SEND_TO_BLING][OFF] - [CONTA A RECEBER] - " . $contaAReceberAmount);
+                $ids = "[";
+                foreach($order->payments as $payment) { $ids .= $payment['id'].",";}
+                $ids .= "]";
+
+                Log::info("[SEND_TO_BLING][OFF] - [CONTA A RECEBER] - Order ID: " . $order['id'] . " - IDs: $ids - Valor: "  . $contaAReceberAmount);
             }
 
             // Change bling_send_flag
             if (env('SEND_TO_BLING')) {
-                Order::where('id', $order['id'])
-                    ->update(['bling_send_flag' => true]);
+                $isAllSendedToBling = true;
+
+                foreach($order->fees as $fee){
+                    if(!$fee['bling_id']){
+                        $isAllSendedToBling = false;
+                    }
+                }
+                foreach($order->payments as $payment){
+                    if(!$payment['bling_id']){
+                        $isAllSendedToBling = false;
+                    }
+                }
+
+                if($isAllSendedToBling){
+                    Order::where('id', $order['id'])->update(['bling_send_flag' => true]);
+                }
             }
         }
-    }
-
-    public function getOrdersFromLast30Days()
-    {
-        $dateLast30Days = date('Y-m-d h:m:s', strtotime("-30 days", null));
-        $orders = Order::where('created_in', '>=', $dateLast30Days)->get();
-
-        return $orders;
     }
 
     public function getOrders()
@@ -607,7 +583,7 @@ class Integration extends Controller
     public function getOrdersToUpdateStatus($quantity)
     {
         $limitDate = now()->subDays(30);
-        $orders = DB::table('orders')
+        $orders = DB::table('order')
                         ->where('created_in', '<=', $limitDate)
                         ->where('need_update_flag', 0)
                         ->where('bling_send_flag', 1)
@@ -638,24 +614,26 @@ class Integration extends Controller
     public function updateOrderStatus($order)
     {
         $mercadoLivre = new Mercadolivre();
-        $orderResponse = $mercadoLivre->getOrderStatus($order['order_id']);
-        $tags = $orderResponse['tags'];
-        $status = $orderResponse['status'];
+        $orderResponse = $mercadoLivre->getOrder($order->order_id);
 
         if(!$orderResponse) { return false;}
 
-        if (in_array("paid", $tags) && in_array("delivered", $tags)) {
-            if($this->isOrderPaid($order['order_id'])){
-                DB::table('order')->where('id', $order['id'])->update(['status' => "SEND_PAID_TO_BLING"]);
-                DB::table('payment')->where('order_id', $order['id'])->update(['send_baixa_to_bling' => 1]);
-                DB::table('fee')->where('order_id', $order['id'])->update(['send_baixa_to_bling' => 1]);
+        $orderResponse = $orderResponse[0];
+        $tags = $orderResponse['tags'];
+        $status = $orderResponse['status'];
+
+        if (in_array("paid", $tags) && in_array("not_delivered", $tags)) { //if (in_array("paid", $tags) && in_array("delivered", $tags)) {
+            if($this->isOrderPaid($order->order_id)){
+                DB::table('order')->where('id', $order->id)->update(['status' => "SEND_PAID_TO_BLING"]);
+                DB::table('payment')->where('order_id', $order->id)->update(['send_baixa_to_bling' => 1]);
+                DB::table('fee')->where('order_id', $order->id)->update(['send_baixa_to_bling' => 1]);
             }
         } else if (in_array("paid", $tags) && $status == "cancelled") {
-            DB::table('order')->where('id', $order['id'])->update([
+            DB::table('order')->where('id', $order->id)->update([
                     'status' => "REFUND"
             ]);
         } else if (in_array("not_delivered", $tags) && in_array("not_paid", $tags) && $status == "cancelled") {
-            DB::table('order')->where('id', $order['id'])->update([
+            DB::table('order')->where('id', $order->id)->update([
                     'status' => "CANCEL"
             ]);
         }
@@ -670,7 +648,7 @@ class Integration extends Controller
 
     public function getPaidOrdersToSend($quantity)
     {
-        $orders = DB::table('orders')
+        $orders = DB::table('order')
                         ->where('need_update_flag', 0)
                         ->where('bling_send_flag', 1)
                         ->where('status', 'SEND_PAID_TO_BLING');
@@ -703,17 +681,15 @@ class Integration extends Controller
     public function xmlBaixa($tipo)
     {
 
-        //contasreceber / contapagar
+        //contareceber / contapagar
         $dataLiquidacao = new DateTime('NOW');
 
         $xmlBaixa = array(
-            "$tipo" => array(
                 "dataLiquidacao" => $dataLiquidacao->format('d/m/Y'),
-                "juros"          => "",
+                /* "juros"          => "",
                 "desconto"       => "",
                 "acrescimo"      => "",
-                "tarifa"         => ""
-            )
+                "tarifa"         => "" */
         );
 
         $parser = new Parser();
@@ -723,36 +699,38 @@ class Integration extends Controller
 
     public function sendBaixaToBling($order)
     {
-        $orderId  = $order['order_id'];
+        $orderId  = $order->id;
         $fees     = $this->getFeeFromOrder($orderId);
         $payments = $this->getPaymentFromOrder($orderId);
 
         foreach($fees as $fee){
-            if($fee['send_baixa_to_bling']){
+            if($fee->send_baixa_to_bling){
+                Log::info("[sendBaixaToBling][CONTA A PAGAR]: Order ID: " . $fee->order_id . ' - Bling ID: ' . $fee->bling_id . " - ID: " . $fee->id);
                 $xml = $this->xmlBaixa("contapagar");
                 if(env('SEND_TO_BLING')){
-                    $response = $this->blingBaixaContaAPagar($fee['bling_id'], $xml);
+                    $response = $this->blingBaixaContaAPagar($fee->bling_id, $xml);
                 } else {
-                    Log::info("[SEND_TO_BLING: FALSE][BAIXA][CONTA A PAGAR]: Order ID: " . $fee['order_id'] . ' - Bling ID: ' . $fee['bling_id'] . " - ID: " . $fee['id']);
+                    Log::info("[SEND_TO_BLING: FALSE][BAIXA][CONTA A PAGAR]: Order ID: " . $fee->order_id . ' - Bling ID: ' . $fee->bling_id . " - ID: " . $fee->id);
                 }
                 if($response){
-                    DB::table('fee')->where('id', $fee['id'])->update(['send_baixa_to_bling' => '0']);
-                    Log::info("[BAIXA][CONTA A PAGAR]: Order ID: " . $fee['order_id'] . ' - Bling ID: ' . $fee['bling_id'] . " - ID: " . $fee['id']);
+                    DB::table('fee')->where('id', $fee->id)->update(['send_baixa_to_bling' => '0']);
+                    Log::info("[sendBaixaToBling][BAIXA CONFIRMADA][CONTA A PAGAR]: Order ID: " . $fee->order_id . ' - Bling ID: ' . $fee->bling_id . " - ID: " . $fee->id);
                 }
             }
         }
 
         foreach($payments as $payment){
-            if($payment['send_baixa_to_bling']){
-                $xml = $this->xmlBaixa("contasreceber");
+            if($payment->send_baixa_to_bling){
+                $xml = $this->xmlBaixa("contareceber");
+                Log::info("[sendBaixaToBling][CONTA A RECEBER]: Order ID: " . $payment->order_id . ' - Bling ID: ' . $payment->bling_id . " - ID: " . $payment->id);
                 if(env('SEND_TO_BLING')){
-                    $response = $this->blingBaixaContaAReceber($payment['bling_id'], $xml);
+                    $response = $this->blingBaixaContaAReceber($payment->bling_id, $xml);
                 } else {
-                    Log::info("[SEND_TO_BLING: FALSE][BAIXA][CONTA A RECEBER]: Order ID: " . $payment['order_id'] . ' - Bling ID: ' . $payment['bling_id'] . " - ID: " . $payment['id']);
+                    Log::info("[SEND_TO_BLING: FALSE][BAIXA][CONTA A RECEBER]: Order ID: " . $payment->order_id . ' - Bling ID: ' . $payment->bling_id . " - ID: " . $payment->id);
                 }
                 if($response){
-                    DB::table('payment')->where('id', $payment['id'])->update(['send_baixa_to_bling' => '0']);
-                    Log::info("[BAIXA][CONTA A RECEBER]: Order ID: " . $payment['order_id'] . ' - Bling ID: ' . $payment['bling_id'] . " - ID: " . $payment['id']);
+                    DB::table('payment')->where('id', $payment->id)->update(['send_baixa_to_bling' => '0']);
+                    Log::info("[sendBaixaToBling][BAIXA CONFIRMADA][CONTA A RECEBER]: Order ID: " . $payment->order_id . ' - Bling ID: ' . $payment->bling_id . " - ID: " . $payment->id);
                 }
             }
         }
@@ -763,12 +741,12 @@ class Integration extends Controller
         $isAllSendedToBling = true;
 
         foreach($fees as $fee){
-            if($fee['send_baixa_to_bling']){
+            if($fee->send_baixa_to_bling){
                 $isAllSendedToBling = false;
             }
         }
         foreach($payments as $payment){
-            if($payment['send_baixa_to_bling']){
+            if($payment->send_baixa_to_bling){
                 $isAllSendedToBling = false;
             }
         }
