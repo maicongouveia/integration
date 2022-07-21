@@ -42,5 +42,11 @@ class Test extends Command
         $integration->getOrders();
         $integration->enrichOrders(1);
         $integration->registerOrdersBling(1);
+
+        $orders = $integration->getOrdersToUpdateStatus(5);
+        $integration->updateOrdersStatus($orders);
+
+        $orders = $integration->getPaidOrdersToSend(5);
+        foreach ($orders as $order){$integration->sendBaixaToBling($order);}
     }
 }
