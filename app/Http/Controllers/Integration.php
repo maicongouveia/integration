@@ -66,7 +66,7 @@ class Integration extends Controller
                 }
 
             } else {
-                Log::info("[registerOrdersLocal] Order exists - " . $order['order_id']);
+                //Log::info("[registerOrdersLocal] Order exists - " . $order['order_id']);
             }
         }
     }
@@ -365,7 +365,7 @@ class Integration extends Controller
                 }
 
                 $categoria = $this->categoryHandler($fee['description']);
-                Log::info("[PROD - BUG] Order ID: ". $order['id'] . ' - $order->buyer: ' . json_encode($order->buyer));
+                //Log::info("[PROD - BUG] Order ID: ". $order['id'] . ' - $order->buyer: ' . json_encode($order->buyer));
                 $conta = array(
                         "dataEmissão"        => $date->format('d/m/Y'),
                         "vencimentoOriginal" => $dataWithTermExtension,

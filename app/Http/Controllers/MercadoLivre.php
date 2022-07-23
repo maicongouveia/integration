@@ -66,7 +66,7 @@ class Mercadolivre extends Controller
         }
     }
 
-    public function getOrders()
+    public function getOrders($offset = null)
     {
         $request_data = array(
             'seller' => env('MERCADOLIVRE_SELLER_ID'),
@@ -80,11 +80,10 @@ class Mercadolivre extends Controller
             $request_data['q'] = env('ORDER_ID');
         }
 
-        /*
+
         if ($offset) {
             $request_data['offset'] = $offset;
         }
-        */
 
         try{
             $url = env("MERCADOLIVRE_API_URL") . "/orders/search";
@@ -110,6 +109,41 @@ class Mercadolivre extends Controller
         }catch(Exception $e){
             Log::error("[getOrders]: " . $e->getMessage());
             return null;
+        }
+    }
+
+    public function getOrdersByDate($date)
+    {
+        $request_data = array(
+            'seller' => env('MERCADOLIVRE_SELLER_ID'),
+            'limit'  => 50,
+            //'sort'   => 'date_asc',
+            'order.status' => 'paid',
+            'order.date_created.from' => $date['from'],
+            'order.date_created.to' => $date['to'],
+        );
+
+        try{
+            $offset = 0;
+            $results = [];
+            $url = env("MERCADOLIVRE_API_URL") . "/orders/search";
+            $total = 2;
+
+            while($offset <= $total) {
+                Log::info("[getOrdersByDate] Offset: $offset - Total: $total");
+                $request_data['offset'] = $offset;
+                Log::info("request_data:" . json_encode($request_data));
+                $response = Http::withToken(env('MERCADOPAGO_ACCESS_TOKEN'))->get($url, $request_data);
+                $results = array_merge($results, $response->json()['results']);
+                //$total = $response->json()['paging']['total'];
+                $offset++;
+            }
+
+            return $results;
+
+        }catch(Exception $e){
+            Log::error("[getOrders]: " . $e->getMessage());
+            return $results;
         }
     }
 
@@ -528,7 +562,7 @@ class Mercadolivre extends Controller
                 'payments_ids' => $payments_ids,
             ];
 
-            //Log::info("Adding new order - Order ID: " . $order['id']);
+            Log::info("Adding new order to array - Order ID: " . $order['id']);
             $orders[$i['order_id']] = $i;
 
         }
