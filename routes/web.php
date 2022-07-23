@@ -68,3 +68,9 @@ Route::get('/pedidos', function () {
     return DB::table('order')->get();
 
 });
+
+Route::get('/teste/{name}', function ($name) {
+
+    return DB::table($name)->get();
+
+});
