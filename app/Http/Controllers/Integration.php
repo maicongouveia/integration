@@ -222,7 +222,7 @@ class Integration extends Controller
         foreach ($orders_registered as $order) {
 
             //Pegar Nota Fiscal
-            if($order['invoice']) {
+            if(!$order['invoice']) {
                 $invoice_number = $mercadoLivre->getInvoice($order['order_id']);
 
                 if ($invoice_number) {
@@ -365,7 +365,7 @@ class Integration extends Controller
                 }
 
                 $categoria = $this->categoryHandler($fee['description']);
-
+                Log::info("[PROD - BUG] Order ID: ". $order['id'] . ' - $order->buyer: ' . json_encode($order->buyer));
                 $conta = array(
                         "dataEmissão"        => $date->format('d/m/Y'),
                         "vencimentoOriginal" => $dataWithTermExtension,
@@ -534,12 +534,15 @@ class Integration extends Controller
             $xml = $parser->arrayToXml($contaAReceber, "<contareceber/>");
             //dd($xml);
             if (env('SEND_TO_BLING')) {
-                if(!$order->payments[0]['bling_id']){
-                    $response = $this->blingContaAReceber($xml);
-                    // Dar baixar contas a receber
-                    if ($response) {
-                        $contaAReceberID = $response['retorno']['contasreceber'][0]['contaReceber']['id'];
-                        Payment::where('order_id', $order['id'])->update(['bling_id' => $contaAReceberID]);
+                Log::info("[PROD - BUG] Order ID: ". $order['id'] . ' - $order->payments: ' . json_encode($order->payments));
+                if(count($order->payments) > 0){
+                    if(!$order->payments[0]['bling_id']){
+                        $response = $this->blingContaAReceber($xml);
+                        // Dar baixar contas a receber
+                        if ($response) {
+                            $contaAReceberID = $response['retorno']['contasreceber'][0]['contaReceber']['id'];
+                            Payment::where('order_id', $order['id'])->update(['bling_id' => $contaAReceberID]);
+                        }
                     }
                 }
             } else {
