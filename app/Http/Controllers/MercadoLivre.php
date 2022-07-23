@@ -62,7 +62,6 @@ class Mercadolivre extends Controller
 
         }catch(Exception $e){
             Log::error("[getOrders]: " . $e->getMessage());
-            dd("[getOrders]: " . $e->getMessage());
             return null;
         }
     }
@@ -110,7 +109,6 @@ class Mercadolivre extends Controller
 
         }catch(Exception $e){
             Log::error("[getOrders]: " . $e->getMessage());
-            dd("[getOrders]: " . $e->getMessage());
             return null;
         }
     }
@@ -372,7 +370,6 @@ class Mercadolivre extends Controller
                         "[responseFeeHandler]: " . $e->getMessage() .
                         " - [Data]: " . $fee
                     );
-                    dd("[responseFeeHandler]: " . $e->getMessage() . "- [Data]: " . $fee);
                 }
             }
         }
@@ -406,7 +403,6 @@ class Mercadolivre extends Controller
             return $response->json()['invoice_number'];
         }catch(Exception $e){
             Log::error("[getInvoice]: Order ID: $orderId - [Error]" . $e->getMessage());
-            dd("[getInvoice]: Order ID: $orderId - [Error]" . $e->getMessage());
             return null;
         }
     }
